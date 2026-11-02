@@ -83,3 +83,12 @@ struct ContentView: View {
         model.begin(url: trimmed)
     }
 }
+
+// [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+// PreviewProvider (not #Preview) keeps compatibility with the macOS 13 target.
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView(model: TranscriptionViewModel(settings: .defaults))
+            .frame(width: 520, height: 340)
+    }
+}
