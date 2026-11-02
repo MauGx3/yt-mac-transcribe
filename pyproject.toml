@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yt-transcribe"
+version = "1.0.0"
+description = "Fast local YouTube transcripts using YouTube's own caption tracks, with a whisper.cpp fallback"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+asr = []
+
+[project.scripts]
+ytt = "ytt.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
