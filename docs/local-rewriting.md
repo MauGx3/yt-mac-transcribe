@@ -20,6 +20,8 @@ The rewritten file keeps the original segment timings, word timings, video metad
 ytt URL --rewrite-command COMMAND [COMMAND_ARGS ...]
 ```
 
+`--rewrite-command` must be the **last** `ytt` option. Everything after it, including flags such as `--model`, is passed unchanged to the runner. Put URLs, `-f`, `-o`, and `--rewrite-timeout` before it.
+
 The command must be a local executable. `ytt` sends a JSON request on stdin and expects a JSON response on stdout. The command does not need network access, and no model library is added to the Python package.
 
 Example using a local Python runner:
@@ -107,8 +109,9 @@ For a real runner, pass `request["segments"]` as structured context to the local
 - A segment count mismatch fails the video rewrite.
 - A timeout fails the video rewrite.
 - The original transcript is written before the rewritten companion is attempted.
-- When rewriting fails, `ytt` returns a failure for that video instead of silently presenting an unverified rewrite.
+- When rewriting fails, `ytt` still prints the original output paths on stdout, logs the error, and records the URL in the batch `failed:` summary instead of silently presenting an unverified rewrite.
+- A single-video run whose rewrite fails exits with status `1`; the original files remain on disk.
 
 ## Development notes
 
-The implementation lives in `src/ytt/rewriter.py`. It builds the request, runs the local command, validates the response, copies original timings, and marks provenance. CLI integration and companion naming live in `src/ytt/cli.py`; tests are in `tests/test_rewriter.py`.
+The implementation lives in `src/ytt/rewriter.py`. It builds the request, runs the local command, validates the response, copies original timings, and marks provenance. CLI integration and companion naming live in `src/ytt/cli.py`; tests are in `tests/test_rewriter.py` and `tests/test_rewrite_cli.py`.
