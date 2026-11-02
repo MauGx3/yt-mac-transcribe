@@ -13,6 +13,7 @@ from .cache import DEFAULT_TTL, Cache
 from .captions import parse_any
 from .formatter import FORMATS, render
 from .model import Transcript
+from .rewriter import rewrite_transcript
 from .segments import quality_report
 from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filename
 from .youtube import RateLimited, VideoError, YtDlpMissing, YouTube
@@ -71,7 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="delete cached caption and metadata payloads, then exit")
     p.add_argument("--cache-ttl", type=int, default=DEFAULT_TTL, metavar="SECS",
                    help="cache lifetime in seconds (default: %(default)s)")
-    p.add_argument("--version", action="version", version="ytt " + __version__)
+    p.add_argument("--rewrite-command", nargs="+", metavar="CMD",
+                   help="run a local context-aware rewriter after transcription; "
+                        "command reads JSON on stdin and writes JSON on stdout")
+    p.add_argument("--rewrite-timeout", type=int, default=300, metavar="SECS",
+                   help="local rewrite command timeout (default: %(default)s)")
     return p
 
 
@@ -114,6 +119,11 @@ def output_path(out: str, title: str, video_id: str, fmt: str, multi: bool) -> s
         return out
     root, _ = os.path.splitext(out)
     return root + ext
+
+
+def rewritten_output_path(path: str) -> str:
+    root, ext = os.path.splitext(path)
+    return root + ".rewritten" + ext
 
 
 def process_one(
@@ -220,6 +230,19 @@ def process_one(
             log.error("nothing left after removing sound tags")
             return None, []
 
+    if args.rewrite_command:
+        t0 = Timer()
+        try:
+            rewritten = rewrite_transcript(
+                transcript, args.rewrite_command, timeout=args.rewrite_timeout
+            )
+            log.info("  ✓ local rewrite · %s" % fmt_elapsed(t0.ms))
+        except Exception as exc:
+            log.error("local rewrite failed: %s" % exc)
+            return None, []
+    else:
+        rewritten = None
+
     written: List[str] = []
     for fmt in args.format:
         path = output_path(args.out, title, vid, fmt, multi)
@@ -233,6 +256,16 @@ def process_one(
             fh.write(body)
         written.append(path)
         log.debug("wrote %s (%s)" % (path, fmt))
+
+        if rewritten is not None:
+            rewrite_path = rewritten_output_path(path)
+            rewrite_body = render(rewritten, fmt, timestamps=args.timestamps)
+            if args.raw and fmt in ("txt", "md"):
+                rewrite_body = _render_raw(rewritten, fmt, args.timestamps)
+            with open(rewrite_path, "w", encoding="utf-8") as fh:
+                fh.write(rewrite_body)
+            written.append(rewrite_path)
+            log.debug("wrote %s (%s)" % (rewrite_path, fmt))
 
     if args.stats:
         log.info("  total %s · %s segments · %s words · %s chars" % (

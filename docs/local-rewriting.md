@@ -1,0 +1,114 @@
+# Local context-aware rewriting
+
+`ytt` can run a local language model after transcription to repair wording that depends on surrounding context. This is useful for homophones, punctuation, sentence boundaries, and captions where each cue is understandable only with its neighbors.
+
+The rewriter never changes the original transcript. For every requested format it writes both files:
+
+```text
+My Video.txt
+My Video.rewritten.txt
+
+My Video.srt
+My Video.rewritten.srt
+```
+
+The rewritten file keeps the original segment timings, word timings, video metadata, and source URL. Its JSON/Markdown provenance reports `rewrite` as the engine and records the original engine in `rewritten_from`.
+
+## Command
+
+```bash
+ytt URL --rewrite-command COMMAND [COMMAND_ARGS ...]
+```
+
+The command must be a local executable. `ytt` sends a JSON request on stdin and expects a JSON response on stdout. The command does not need network access, and no model library is added to the Python package.
+
+Example using a local Python runner:
+
+```bash
+ytt https://youtu.be/aircAruvnKk \
+  -f txt srt json \
+  --rewrite-command python3 tools/rewrite_with_local_model.py
+```
+
+The rewrite timeout defaults to five minutes:
+
+```bash
+ytt URL --rewrite-timeout 900 \
+  --rewrite-command ./bin/my-apple-silicon-rewriter --model qwen2.5:7b
+```
+
+The model runner can call an on-device engine such as a native MLX, llama.cpp, or Ollama setup. The repository does not prescribe a model runtime because hardware, model size, quantization, and installation choices vary across Apple silicon machines.
+
+## Input protocol
+
+The stdin JSON object contains the video metadata and the complete ordered segment list:
+
+```json
+{
+  "title": "Example video",
+  "url": "https://youtu.be/example",
+  "language": "en",
+  "instructions": "Rewrite only wording that improves meaning, grammar, punctuation, or speaker intent. Preserve the segment count and return JSON with a segments array containing one text field per segment.",
+  "segments": [
+    {
+      "index": 0,
+      "start_ms": 1000,
+      "end_ms": 2000,
+      "text": "their going home",
+      "previous_text": "",
+      "next_text": "because its late"
+    }
+  ]
+}
+```
+
+The neighboring text fields are convenience context. The full `segments` array is always present so a runner can use broader document context.
+
+## Output protocol
+
+Write one JSON object to stdout:
+
+```json
+{
+  "segments": [
+    {"text": "They are going home"},
+    {"text": "because it is late"}
+  ]
+}
+```
+
+The response must contain exactly one item for every input segment, in the same order. Each item must contain a string `text` value. `ytt` rejects invalid JSON, a different segment count, non-object items, or non-string text values and leaves no partial rewritten output.
+
+A runner should preserve meaning and avoid adding information that is not supported by the transcript. It should correct wording and punctuation while keeping each segment concise enough for its existing subtitle timing.
+
+## Building a local runner
+
+A runner only needs standard input/output handling. The model call is intentionally outside `ytt` so the same CLI feature can work with different local engines:
+
+```python
+import json
+import sys
+
+request = json.load(sys.stdin)
+# Replace this with an on-device model call.
+rewritten = [
+    {"text": segment["text"]}
+    for segment in request["segments"]
+]
+json.dump({"segments": rewritten}, sys.stdout, ensure_ascii=False)
+```
+
+For a real runner, pass `request["segments"]` as structured context to the local model, validate that the response contains the same number of segments, and emit only the required JSON object. Diagnostics should go to stderr so stdout remains parseable JSON.
+
+## Failure behavior
+
+- A non-zero runner exit code fails the video rewrite.
+- Invalid JSON fails the video rewrite.
+- A segment count mismatch fails the video rewrite.
+- A timeout fails the video rewrite.
+- The original transcript is written before the rewritten companion is attempted.
+- When rewriting fails, `ytt` returns a failure for that video instead of silently presenting an unverified rewrite.
+
+## Development notes
+
+The implementation lives in `src/ytt/rewriter.py`. It builds the request, runs the local command, validates the response, copies original timings, and marks provenance. CLI integration and companion naming live in `src/ytt/cli.py`; tests are in `tests/test_rewriter.py`.
