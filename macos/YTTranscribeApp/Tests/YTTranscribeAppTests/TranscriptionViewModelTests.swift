@@ -56,6 +56,23 @@ final class TranscriptionViewModelTests: XCTestCase {
         guard case .failed = model.state else { return XCTFail("Cancelled operation must not publish a stale result") }
     }
 
+    // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+    // Regression for PR #2 review: a replaced request must be invalidated
+    // synchronously in `begin`, so its task can never run or publish state.
+    @MainActor
+    func testReplacingRequestBeforeItStartsNeverRunsStaleURL() async {
+        let runner = StubRunner()
+        let model = TranscriptionViewModel(settings: AppSettings.defaults, runner: runner)
+        model.begin(url: "https://youtu.be/stale")
+        model.begin(url: "https://youtu.be/current")
+        for _ in 0..<100 {
+            if case .awaitingReviewChoice = model.state { break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        guard case .awaitingReviewChoice = model.state else { return XCTFail("Current request should finish") }
+        XCTAssertEqual(runner.transcribedURLs, ["https://youtu.be/current"])
+    }
+
     @MainActor
     func testRunnerErrorMovesToFailed() async {
         let runner = StubRunner(error: TestFailure.expected)
@@ -75,6 +92,7 @@ private final class StubRunner: TranscriptionRunning {
     let reviewResult: TranscriptFiles?
     let error: Error?
     private(set) var reviewCalls = 0
+    private(set) var transcribedURLs: [String] = []
     private let delayNanoseconds: UInt64
 
     init(delayNanoseconds: UInt64 = 0, transcriptionResult: TranscriptFiles = TranscriptFiles(original: URL(fileURLWithPath: "/tmp/original.txt")), reviewResult: TranscriptFiles? = nil, error: Error? = nil) {
@@ -85,6 +103,7 @@ private final class StubRunner: TranscriptionRunning {
     }
 
     func transcribe(url: String, settings: AppSettings) async throws -> TranscriptFiles {
+        transcribedURLs.append(url)
         if delayNanoseconds > 0 { try await Task.sleep(nanoseconds: delayNanoseconds) }
         if let error { throw error }
         return transcriptionResult
