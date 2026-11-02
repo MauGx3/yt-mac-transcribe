@@ -36,6 +36,18 @@ protocol TranscriptionRunning {
 }
 
 struct TranscriptionRunner: TranscriptionRunning {
+    static func files(from paths: [URL], mode: TranscriptionMode) throws -> TranscriptFiles {
+        guard let original = paths.first else { throw TranscriptionRunnerError.missingOutput }
+        let reviewed: URL?
+        if case .review = mode {
+            guard paths.count > 1 else { throw TranscriptionRunnerError.missingOutput }
+            reviewed = paths[1]
+        } else {
+            reviewed = nil
+        }
+        return TranscriptFiles(original: original, reviewed: reviewed)
+    }
+
     static func arguments(for mode: TranscriptionMode, url: String, settings: AppSettings) -> [String] {
         var args = [url, "-f", "txt", "-o", settings.outputDirectory.path]
         if case .review = mode {
@@ -73,11 +85,7 @@ struct TranscriptionRunner: TranscriptionRunning {
             .split(whereSeparator: \.isNewline)
             .map { URL(fileURLWithPath: String($0).trimmingCharacters(in: .whitespacesAndNewlines)) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
-        guard let original = paths.first(where: { !$0.lastPathComponent.contains(".rewritten.") }) else {
-            throw TranscriptionRunnerError.missingOutput
-        }
-        let reviewed = paths.first(where: { $0.lastPathComponent.contains(".rewritten.") })
-        return TranscriptFiles(original: original, reviewed: reviewed)
+        return try Self.files(from: paths, mode: mode)
     }
 
     private struct ProcessResult {

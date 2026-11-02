@@ -17,6 +17,14 @@ final class TranscriptionRunnerTests: XCTestCase {
         XCTAssertEqual(Array(args.suffix(4)), ["--rewrite-command", "/opt/local/model runner", "--model", "small model"])
     }
 
+    func testOutputPairDoesNotMisclassifyOriginalTitleEndingInRewritten() throws {
+        let original = URL(fileURLWithPath: "/tmp/lecture.rewritten.txt")
+        let reviewed = URL(fileURLWithPath: "/tmp/lecture.rewritten.rewritten.txt")
+        let files = try TranscriptionRunner.files(from: [original, reviewed], mode: .review)
+        XCTAssertEqual(files.original, original)
+        XCTAssertEqual(files.reviewed, reviewed)
+    }
+
     func testNonzeroExitIncludesStderr() async throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)

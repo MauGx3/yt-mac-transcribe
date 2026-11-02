@@ -46,14 +46,14 @@ struct ContentView: View {
             titleVisibility: .visible
         ) {
             Button("Create Reviewed Version") {
-                Task { await model.acceptReview() }
+                model.beginReview()
             }
             .disabled(!model.canReview)
             Button("Keep Original Only", role: .cancel) { model.declineReview() }
         } message: {
             Text(model.canReview ? "The original transcript is saved. The reviewed transcript will be saved alongside it." : "Configure a local rewrite command in Settings to create a reviewed copy.")
         }
-        .onChange(of: model.state) { _, state in
+        .onChange(of: model.state) { state in
             if case .awaitingReviewChoice = state { showingReviewPrompt = true }
         }
     }
@@ -80,6 +80,6 @@ struct ContentView: View {
     private func submit() {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        Task { await model.start(url: trimmed) }
+        model.begin(url: trimmed)
     }
 }
