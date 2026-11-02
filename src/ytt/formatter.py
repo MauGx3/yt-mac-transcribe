@@ -88,6 +88,9 @@ def render_json(t: Transcript, include_words: bool = True) -> str:
             _seg_json(s, include_words) for s in t.segments
         ],
     }
+    # [AI-GENERATED] Rewrite companions record which engine produced the input.
+    if t.extra.get("rewritten_from"):
+        payload["source"]["rewritten_from"] = t.extra["rewritten_from"]
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
@@ -113,6 +116,8 @@ def render_md(t: Transcript, timestamps: bool = True) -> str:
         ("Transcript", t.label()),
         ("Segments", "{:,}".format(len(t.segments))),
     ]
+    if t.extra.get("rewritten_from"):  # [AI-GENERATED] rewrite provenance
+        meta.insert(4, ("Rewritten from", t.extra["rewritten_from"]))
     for key, val in meta:
         lines.append("- **%s:** %s" % (key, val))
     lines.append("")
