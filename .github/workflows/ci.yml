@@ -30,3 +30,16 @@ jobs:
         run: ytt --version
       - name: Unit tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+  macos-app:
+    name: SwiftUI app build and XCTest
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test (unsigned)
+        run: >
+          xcodebuild test
+          -project macos/YTTranscribeApp/YTTranscribeApp.xcodeproj
+          -scheme YTTranscribeApp
+          -destination 'platform=macOS,arch=arm64'
+          CODE_SIGNING_ALLOWED=NO
