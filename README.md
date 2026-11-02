@@ -117,7 +117,7 @@ ytt https://youtu.be/aircAruvnKk -f txt srt json \
   --rewrite-command python3 tools/rewrite_with_local_model.py
 ```
 
-For `video.srt`, the companion file is `video.rewritten.srt`. The original is never replaced. The runner must read JSON from stdin and write exactly `{"segments": [{"text": "..."}, ...]}` to stdout. It can call any local Apple silicon runtime, such as an MLX, llama.cpp, or Ollama based runner. See [`docs/local-rewriting.md`](docs/local-rewriting.md) for the complete protocol and failure behavior.
+For `video.srt`, the companion file is `video.rewritten.srt`. The original is never replaced, and it is written before the rewriter runs. `--rewrite-command` must be the last option; every argument after it goes to the runner. The runner must read JSON from stdin and write exactly `{"segments": [{"text": "..."}, ...]}` to stdout. It can call any local Apple silicon runtime, such as an MLX, llama.cpp, or Ollama based runner. See [`docs/local-rewriting.md`](docs/local-rewriting.md) for the complete protocol and failure behavior.
 
 ## Performance model
 

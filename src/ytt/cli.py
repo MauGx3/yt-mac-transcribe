@@ -72,12 +72,28 @@ def build_parser() -> argparse.ArgumentParser:
                    help="delete cached caption and metadata payloads, then exit")
     p.add_argument("--cache-ttl", type=int, default=DEFAULT_TTL, metavar="SECS",
                    help="cache lifetime in seconds (default: %(default)s)")
-    p.add_argument("--rewrite-command", nargs="+", metavar="CMD",
-                   help="run a local context-aware rewriter after transcription; "
-                        "command reads JSON on stdin and writes JSON on stdout")
     p.add_argument("--rewrite-timeout", type=int, default=300, metavar="SECS",
                    help="local rewrite command timeout (default: %(default)s)")
+    # [AI-GENERATED] REMAINDER keeps runner flags such as `--model` out of
+    # ytt's own parser, so this option must be the last one on the line.
+    p.add_argument("--rewrite-command", nargs=argparse.REMAINDER, metavar="CMD",
+                   help="run a local context-aware rewriter after transcription; "
+                        "must be the LAST option, everything after it is passed "
+                        "to the command, which reads JSON on stdin and writes "
+                        "JSON on stdout")
+    p.add_argument("--version", action="version", version="ytt " + __version__)
     return p
+
+
+class RewriteFailed(RuntimeError):
+    """[AI-GENERATED] The rewrite companion failed after originals were written.
+
+    ``written`` lists the original output paths that were saved successfully.
+    """
+
+    def __init__(self, message: str, written: List[str]):
+        super().__init__(message)
+        self.written = list(written)
 
 
 def collect_urls(args) -> List[str]:
@@ -124,6 +140,48 @@ def output_path(out: str, title: str, video_id: str, fmt: str, multi: bool) -> s
 def rewritten_output_path(path: str) -> str:
     root, ext = os.path.splitext(path)
     return root + ".rewritten" + ext
+
+
+def _write_formats(t: Transcript, args, title: str, vid: str, multi: bool,
+                   log: Log, companion: bool) -> List[str]:
+    written: List[str] = []
+    for fmt in args.format:
+        path = output_path(args.out, title, vid, fmt, multi)
+        if companion:
+            path = rewritten_output_path(path)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        body = render(t, fmt, timestamps=args.timestamps)
+        if args.raw and fmt in ("txt", "md"):
+            body = _render_raw(t, fmt, args.timestamps)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        written.append(path)
+        log.debug("wrote %s (%s)" % (path, fmt))
+    return written
+
+
+def write_outputs(transcript: Transcript, args, title: str, vid: str,
+                  multi: bool, log: Log) -> List[str]:
+    """[AI-GENERATED] Write originals first, then optional rewrite companions.
+
+    Originals are always persisted before the rewriter runs, so a failing or
+    slow model never loses the transcript. Rewrite errors raise
+    :class:`RewriteFailed` carrying the original paths.
+    """
+    written = _write_formats(transcript, args, title, vid, multi, log, False)
+    if not args.rewrite_command:
+        return written
+    t0 = Timer()
+    try:
+        rewritten = rewrite_transcript(
+            transcript, args.rewrite_command, timeout=args.rewrite_timeout
+        )
+    except Exception as exc:
+        raise RewriteFailed("local rewrite failed: %s" % exc, written) from exc
+    log.info("  ✓ local rewrite · %s" % fmt_elapsed(t0.ms))
+    return written + _write_formats(rewritten, args, title, vid, multi, log, True)
 
 
 def process_one(
@@ -230,42 +288,7 @@ def process_one(
             log.error("nothing left after removing sound tags")
             return None, []
 
-    if args.rewrite_command:
-        t0 = Timer()
-        try:
-            rewritten = rewrite_transcript(
-                transcript, args.rewrite_command, timeout=args.rewrite_timeout
-            )
-            log.info("  ✓ local rewrite · %s" % fmt_elapsed(t0.ms))
-        except Exception as exc:
-            log.error("local rewrite failed: %s" % exc)
-            return None, []
-    else:
-        rewritten = None
-
-    written: List[str] = []
-    for fmt in args.format:
-        path = output_path(args.out, title, vid, fmt, multi)
-        parent = os.path.dirname(path)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        body = render(transcript, fmt, timestamps=args.timestamps)
-        if args.raw and fmt in ("txt", "md"):
-            body = _render_raw(transcript, fmt, args.timestamps)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
-        written.append(path)
-        log.debug("wrote %s (%s)" % (path, fmt))
-
-        if rewritten is not None:
-            rewrite_path = rewritten_output_path(path)
-            rewrite_body = render(rewritten, fmt, timestamps=args.timestamps)
-            if args.raw and fmt in ("txt", "md"):
-                rewrite_body = _render_raw(rewritten, fmt, args.timestamps)
-            with open(rewrite_path, "w", encoding="utf-8") as fh:
-                fh.write(rewrite_body)
-            written.append(rewrite_path)
-            log.debug("wrote %s (%s)" % (rewrite_path, fmt))
+    written = write_outputs(transcript, args, title, vid, multi, log)
 
     if args.stats:
         log.info("  total %s · %s segments · %s words · %s chars" % (
@@ -286,7 +309,10 @@ def _render_raw(t: Transcript, fmt: str, timestamps: bool) -> str:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.rewrite_command is not None and not args.rewrite_command:
+        parser.error("--rewrite-command requires a command")
     log = Log(quiet=args.quiet, verbose=args.verbose)
 
     cache = Cache(enabled=not args.no_cache, ttl=args.cache_ttl)
@@ -346,6 +372,14 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if "429" in str(exc):
                     log.info("  YouTube is throttling this IP. Wait a few minutes, "
                              "or retry with --cookies-from-browser chrome")
+                failed.append(url)
+                break
+            except RewriteFailed as exc:
+                # [AI-GENERATED] Originals were saved; surface them, but count
+                # the URL as failed so batch summaries and exit codes are honest.
+                log.error(str(exc))
+                for p in exc.written:
+                    print(p)
                 failed.append(url)
                 break
             except KeyboardInterrupt:
