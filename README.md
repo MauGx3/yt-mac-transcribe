@@ -166,3 +166,9 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution checklist and [`d
 ## License
 
 MIT
+
+## Native macOS app
+
+A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then asks whether to create a locally reviewed copy. The original and reviewed files are saved together; the app can open either file or reveal them in Finder.
+
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode. Configure the `ytt` executable and (optionally) a local rewrite command in the app’s Settings. The app targets macOS 13 or newer on Apple silicon and bundles no model.
