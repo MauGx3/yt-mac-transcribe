@@ -29,25 +29,46 @@ final class TranscriptionViewModel: ObservableObject {
         self.settings = settings
     }
 
+    // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+    // The operation ID is assigned synchronously when work is scheduled, so a
+    // replaced task (even one cancelled before its body runs) can never pass
+    // `isCurrent` and clobber `activeTask` or `state` of the newer request.
     func begin(url: String) {
-        activeTask?.cancel()
-        activeTask = Task { await start(url: url) }
+        let operationID = replaceActiveOperation()
+        activeTask = Task { await transcribe(url: url, operationID: operationID) }
     }
 
     func start(url: String) async {
-        activeURL = url
+        await transcribe(url: url, operationID: replaceActiveOperation())
+    }
+
+    private func replaceActiveOperation() -> UUID {
+        activeTask?.cancel()
+        activeTask = nil
         let operationID = UUID()
         activeOperationID = operationID
+        return operationID
+    }
+
+    private func isCurrent(_ operationID: UUID) -> Bool {
+        activeOperationID == operationID && !Task.isCancelled
+    }
+
+    private func finish(_ operationID: UUID, with newState: State) {
+        guard isCurrent(operationID) else { return }
+        activeTask = nil
+        state = newState
+    }
+
+    private func transcribe(url: String, operationID: UUID) async {
+        guard isCurrent(operationID) else { return }
+        activeURL = url
         state = .transcribing
         do {
             let files = try await runner.transcribe(url: url, settings: settings)
-            guard activeOperationID == operationID, !Task.isCancelled else { return }
-            activeTask = nil
-            state = .awaitingReviewChoice(files)
+            finish(operationID, with: .awaitingReviewChoice(files))
         } catch {
-            guard activeOperationID == operationID else { return }
-            activeTask = nil
-            state = .failed(error.localizedDescription)
+            finish(operationID, with: .failed(error.localizedDescription))
         }
     }
 
@@ -58,28 +79,29 @@ final class TranscriptionViewModel: ObservableObject {
 
     func beginReview() {
         guard case .awaitingReviewChoice = state else { return }
-        activeTask?.cancel()
-        activeTask = Task { await acceptReview() }
+        let operationID = replaceActiveOperation()
+        activeTask = Task { await review(operationID: operationID) }
     }
 
     func acceptReview() async {
-        guard case let .awaitingReviewChoice(originals) = state, let url = activeURL else { return }
+        guard case .awaitingReviewChoice = state else { return }
+        await review(operationID: replaceActiveOperation())
+    }
+
+    private func review(operationID: UUID) async {
+        guard isCurrent(operationID),
+              case let .awaitingReviewChoice(originals) = state,
+              let url = activeURL else { return }
         guard !settings.rewriteCommand.isEmpty else {
-            state = .failed("Set YTT_REWRITE_COMMAND or configure a local rewrite command in Settings first.")
+            finish(operationID, with: .failed("Set YTT_REWRITE_COMMAND or configure a local rewrite command in Settings first."))
             return
         }
-        let operationID = UUID()
-        activeOperationID = operationID
         state = .rewriting
         do {
             let files = try await runner.review(url: url, settings: settings)
-            guard activeOperationID == operationID, !Task.isCancelled else { return }
-            activeTask = nil
-            state = .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed))
+            finish(operationID, with: .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed)))
         } catch {
-            guard activeOperationID == operationID else { return }
-            activeTask = nil
-            state = .failed(error.localizedDescription)
+            finish(operationID, with: .failed(error.localizedDescription))
         }
     }
 
