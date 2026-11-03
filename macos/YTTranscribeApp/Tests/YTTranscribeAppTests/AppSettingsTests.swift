@@ -8,6 +8,7 @@ final class AppSettingsTests: XCTestCase {
             AppSettings.parseCommand("\"/Applications/Local Model/bin/rewrite\" --model \"small model\" escaped\\ value"),
             ["/Applications/Local Model/bin/rewrite", "--model", "small model", "escaped value"]
         )
+        XCTAssertNil(AppSettings.parseCommand("\"\""))
         XCTAssertNil(AppSettings.parseCommand("\"unterminated"))
     }
 

@@ -36,6 +36,32 @@ protocol TranscriptionRunning {
 }
 
 struct TranscriptionRunner: TranscriptionRunning {
+    private final class ProcessCancellationState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+
+        func register(process: Process) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            self.process = process
+            return !cancelled
+        }
+
+        func cancel() -> Process? {
+            lock.lock()
+            defer { lock.unlock() }
+            cancelled = true
+            return process
+        }
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+    }
+
     static func files(from paths: [URL], mode: TranscriptionMode) throws -> TranscriptFiles {
         guard let original = paths.first else { throw TranscriptionRunnerError.missingOutput }
         let reviewed: URL?
@@ -74,10 +100,16 @@ struct TranscriptionRunner: TranscriptionRunning {
 
     private func run(_ mode: TranscriptionMode, url: String, settings: AppSettings) async throws -> TranscriptFiles {
         try FileManager.default.createDirectory(at: settings.outputDirectory, withIntermediateDirectories: true)
-        let result = try await Self.execute(
-            executable: settings.yttExecutable,
-            arguments: Self.arguments(for: mode, url: url, settings: settings)
-        )
+        let result: ProcessResult
+        do {
+            result = try await Self.execute(
+                executable: settings.yttExecutable,
+                arguments: Self.arguments(for: mode, url: url, settings: settings)
+            )
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            throw TranscriptionRunnerError.cancelled
+        }
         guard result.status == 0 else {
             throw TranscriptionRunnerError.commandFailed(status: result.status, detail: result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -95,9 +127,10 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     private static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
-        let process = Process()
+        let cancellationState = ProcessCancellationState()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
+                let process = Process()
                 let outPipe = Pipe()
                 let errPipe = Pipe()
                 process.executableURL = executable
@@ -105,6 +138,10 @@ struct TranscriptionRunner: TranscriptionRunning {
                 process.standardOutput = outPipe
                 process.standardError = errPipe
                 process.terminationHandler = { terminated in
+                    if cancellationState.isCancelled {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
                     let out = outPipe.fileHandleForReading.readDataToEndOfFile()
                     let err = errPipe.fileHandleForReading.readDataToEndOfFile()
                     continuation.resume(returning: ProcessResult(
@@ -113,13 +150,21 @@ struct TranscriptionRunner: TranscriptionRunning {
                         stderr: String(decoding: err, as: UTF8.self)
                     ))
                 }
+                guard cancellationState.register(process: process), !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 do {
                     try process.run()
+                    if cancellationState.isCancelled, process.isRunning {
+                        process.terminate()
+                    }
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }, onCancel: {
+            guard let process = cancellationState.cancel() else { return }
             if process.isRunning { process.terminate() }
         })
     }

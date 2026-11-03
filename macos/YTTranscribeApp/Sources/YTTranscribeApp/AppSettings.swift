@@ -60,6 +60,7 @@ struct AppSettings: Equatable {
 
         guard !escaping, quote == nil else { return nil }
         if tokenStarted { tokens.append(token) }
+        guard tokens.first.map({ !$0.isEmpty }) ?? true else { return nil }
         return tokens
     }
 
