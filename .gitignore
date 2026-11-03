@@ -1,0 +1,14 @@
+# [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+# Python bytecode and packaging artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Xcode / macOS
+.DS_Store
+xcuserdata/
+DerivedData/
+*.xcuserstate

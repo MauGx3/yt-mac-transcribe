@@ -85,11 +85,15 @@ ytt [URL ...] [options]
       --playlist           expand playlist URLs
       --delay SECS         pause between videos (default: 1.0)
       --retries N          retry failed videos (default: 1)
-      --no-cache            bypass the on-disk cache
+      --no-cache           bypass the on-disk cache
       --cache-ttl SECS     cache lifetime in seconds (default: 604800)
       --clear-cache        delete cached payloads and exit
       --cookies-from-browser BROWSER
                            use browser cookies through yt-dlp
+      --rewrite-command CMD ...
+                           run a local context-aware model after transcription
+      --rewrite-timeout SECS
+                           local rewrite timeout (default: 300)
   -q, --quiet / -v, --verbose / --stats / --version
 ```
 
@@ -103,6 +107,17 @@ ytt [URL ...] [options]
 - **`md`**: metadata followed by timestamped transcript paragraphs.
 
 Each transcript records whether it came from manual captions, YouTube ASR, a machine translation, or local Whisper.
+
+## Local context-aware rewriting
+
+Use `--rewrite-command` to run a local language model after transcription. The model receives the full transcript with neighboring segment context and returns corrected text while `ytt` preserves the original timings. The original and rewritten files are saved together:
+
+```bash
+ytt https://youtu.be/aircAruvnKk -f txt srt json \
+  --rewrite-command python3 tools/rewrite_with_local_model.py
+```
+
+For `video.srt`, the companion file is `video.rewritten.srt`. The original is never replaced, and it is written before the rewriter runs. `--rewrite-command` must be the last option; every argument after it goes to the runner. The runner must read JSON from stdin and write exactly `{"segments": [{"text": "..."}, ...]}` to stdout. It can call any local Apple silicon runtime, such as an MLX, llama.cpp, or Ollama based runner. See [`docs/local-rewriting.md`](docs/local-rewriting.md) for the complete protocol and failure behavior.
 
 ## Performance model
 
@@ -124,11 +139,10 @@ The project uses Python's standard library `unittest` module and has no test dep
 python3 tests/test_parsing.py
 python3 tests/test_tracks.py
 python3 tests/test_cache.py
+python3 tests/test_rewriter.py
 ```
 
-The first three commands are network-free unit tests. These scripts exercise parsing, rolling-window deduplication, timing repair, quality checks, formatters, track selection, output paths, and cache behavior.
-
-Optional live checks:
+The first four commands are network-free unit tests. Optional live checks:
 
 ```bash
 python3 tests/sweep.py 16
@@ -152,3 +166,9 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution checklist and [`d
 ## License
 
 MIT
+
+## Native macOS app
+
+A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then asks whether to create a locally reviewed copy. The original and reviewed files are saved together; the app can open either file or reveal them in Finder.
+
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode. Configure the `ytt` executable and (optionally) a local rewrite command in the app’s Settings. The app targets macOS 13 or newer on Apple silicon and bundles no model.
