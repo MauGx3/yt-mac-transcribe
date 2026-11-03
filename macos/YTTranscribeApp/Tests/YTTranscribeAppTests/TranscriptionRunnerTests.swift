@@ -56,4 +56,14 @@ final class TranscriptionRunnerTests: XCTestCase {
             XCTAssertTrue(error.localizedDescription.localizedCaseInsensitiveContains("output"))
         }
     }
+
+    // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+    func testProcessEnvironmentPrependsToolDirectoriesWithoutDuplicates() {
+        let env = TranscriptionRunner.processEnvironment(base: ["PATH": "/usr/bin:/custom/bin", "HOME": "/Users/test"])
+        let entries = env["PATH"]?.split(separator: ":").map(String.init) ?? []
+        XCTAssertEqual(entries.first, "/opt/homebrew/bin")
+        XCTAssertTrue(entries.contains("/custom/bin"))
+        XCTAssertEqual(entries.filter { $0 == "/usr/bin" }.count, 1)
+        XCTAssertEqual(env["HOME"], "/Users/test")
+    }
 }
