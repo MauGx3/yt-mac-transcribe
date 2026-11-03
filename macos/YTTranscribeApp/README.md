@@ -15,7 +15,7 @@ A lightweight SwiftUI wrapper around the existing `ytt` command. The app accepts
 1. Open `YTTranscribeApp.xcodeproj` in Xcode.
 2. Select the `YTTranscribeApp` scheme and **My Mac** destination.
 3. Build and run.
-4. Open **Settings** and set the full path to the `ytt` executable. Homebrew Apple silicon installs commonly use `/opt/homebrew/bin/ytt`.
+4. The `ytt` CLI is packaged inside the app (`Contents/Resources/ytt.pyz`) by `scripts/bundle-ytt.sh`. Install `yt-dlp` (`brew install yt-dlp`). Optionally override the `ytt` path in **Settings**; the app adds Homebrew directories to `PATH` so `yt-dlp` is found when launched from Finder.
 5. Set a local rewrite command if you want the reviewed-transcript choice enabled. Enter the executable and its arguments, for example `ollama run local-model`.
 6. Paste a single YouTube video URL and select **Transcribe**.
 

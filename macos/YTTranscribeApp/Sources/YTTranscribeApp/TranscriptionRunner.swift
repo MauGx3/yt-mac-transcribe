@@ -126,6 +126,17 @@ struct TranscriptionRunner: TranscriptionRunning {
         let stderr: String
     }
 
+    // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
+    // GUI apps inherit a minimal PATH, but `ytt` looks up `yt-dlp` (and the
+    // optional ASR tools) on PATH, so Homebrew locations are prepended here.
+    static func processEnvironment(base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        var env = base
+        let existing = (base["PATH"] ?? "").split(separator: ":").map(String.init)
+        env["PATH"] = (toolDirectories + existing.filter { !toolDirectories.contains($0) }).joined(separator: ":")
+        return env
+    }
+
     private static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
         let cancellationState = ProcessCancellationState()
         return try await withTaskCancellationHandler(operation: {
@@ -135,6 +146,7 @@ struct TranscriptionRunner: TranscriptionRunning {
                 let errPipe = Pipe()
                 process.executableURL = executable
                 process.arguments = arguments
+                process.environment = Self.processEnvironment()
                 process.standardOutput = outPipe
                 process.standardError = errPipe
                 process.terminationHandler = { terminated in
