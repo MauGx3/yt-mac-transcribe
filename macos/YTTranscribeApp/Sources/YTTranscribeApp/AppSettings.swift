@@ -12,10 +12,16 @@ struct AppSettings: Equatable {
         load(from: .standard, environment: ProcessInfo.processInfo.environment)
     }
 
+    /// The `ytt` CLI packaged inside the app bundle by `scripts/bundle-ytt.sh`.
+    static var bundledExecutable: URL? {
+        Bundle.main.url(forResource: "ytt", withExtension: "pyz")
+    }
+
     static func load(from values: UserDefaults, environment env: [String: String]) -> AppSettings {
         let rewrite = values.string(forKey: "rewriteCommand") ?? env["YTT_REWRITE_COMMAND"] ?? ""
+        let defaultExecutable = bundledExecutable?.path ?? "/opt/homebrew/bin/ytt"
         return AppSettings(
-            yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? "/opt/homebrew/bin/ytt"),
+            yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
             rewriteCommand: Self.parseCommand(rewrite) ?? [],
             outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true)
         )

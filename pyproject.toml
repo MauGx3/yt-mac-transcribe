@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yt-transcribe"
-version = "1.0.0"
+version = "0.1.0"
 description = "Fast local YouTube transcripts using YouTube's own caption tracks, with a whisper.cpp fallback"
 readme = "README.md"
 requires-python = ">=3.8"
