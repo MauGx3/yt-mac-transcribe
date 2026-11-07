@@ -223,7 +223,8 @@ def process_one(
             t0 = Timer()
             try:
                 payload, fmt = yt.fetch_track(track, url)
-                segments = parse_any(payload, fmt or track.best_format)
+                # fmt is None when unknown; parse_any then sniffs the payload.
+                segments = parse_any(payload, fmt)
                 problems = quality_report(segments, int((meta.get("duration") or 0) * 1000))
                 log.debug("captions fetched in %s · %d segments · track %s (%s)" % (
                     fmt_elapsed(t0.ms), len(segments), track.lang, track.kind))
