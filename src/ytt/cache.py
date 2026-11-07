@@ -21,6 +21,9 @@ import time
 from typing import Any, Optional
 
 DEFAULT_TTL = 7 * 24 * 3600  # one week
+# yt-dlp metadata embeds signed timedtext URLs that expire within hours, so
+# it must not live as long as the caption payloads themselves.
+META_TTL = 3600  # one hour
 
 
 def cache_dir() -> str:
@@ -55,12 +58,13 @@ class Cache:
         key = hashlib.sha1("\x00".join(parts).encode("utf-8")).hexdigest()[:20]
         return os.path.join(self.root, key)
 
-    def get_text(self, *parts: str) -> Optional[str]:
+    def get_text(self, *parts: str, ttl: Optional[int] = None) -> Optional[str]:
         if not self.enabled:
             return None
         path = self._path(*parts) + ".txt"
+        limit = self.ttl if ttl is None else min(ttl, self.ttl)
         try:
-            if time.time() - os.path.getmtime(path) > self.ttl:
+            if time.time() - os.path.getmtime(path) > limit:
                 return None
             with open(path, "r", encoding="utf-8") as fh:
                 data = fh.read()
@@ -76,8 +80,8 @@ class Cache:
         path = self._path(*parts) + ".txt"
         _atomic_write(path, value)
 
-    def get_json(self, *parts: str) -> Optional[Any]:
-        raw = self.get_text(*parts)
+    def get_json(self, *parts: str, ttl: Optional[int] = None) -> Optional[Any]:
+        raw = self.get_text(*parts, ttl=ttl)
         if raw is None:
             return None
         try:
