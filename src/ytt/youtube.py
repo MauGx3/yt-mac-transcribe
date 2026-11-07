@@ -14,7 +14,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from .cache import Cache
+from .cache import META_TTL, Cache
 from .util import Log
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
@@ -109,7 +109,7 @@ class YouTube:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
     def metadata(self, url: str) -> Dict[str, Any]:
-        cached = self.cache.get_json("meta", url)
+        cached = self.cache.get_json("meta", url, ttl=META_TTL)
         if cached is not None:
             self.log.debug("metadata cache hit")
             return cached
