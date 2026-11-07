@@ -356,9 +356,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         attempts = max(1, args.retries + 1)
         transcript = None
         paths: List[str] = []
+        succeeded = False
         for attempt in range(attempts):
             try:
                 transcript, paths = process_one(url, args, log, multi, cache)
+                # --list-tracks returns no transcript but is still a success.
+                succeeded = transcript is not None or args.list_tracks
                 break
             except (VideoError, YtDlpMissing) as exc:
                 log.error(str(exc))
@@ -389,7 +392,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 log.error("%s: %s" % (type(exc).__name__, exc))
                 failed.append(url)
                 break
-        if transcript:
+        if succeeded:
             ok += 1
             for p in paths:
                 print(p)
