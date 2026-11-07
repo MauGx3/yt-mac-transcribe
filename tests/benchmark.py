@@ -47,7 +47,7 @@ def bench(vid):
     t_fetch = time.perf_counter() - t0
 
     t0 = time.perf_counter()
-    segs = parse_any(payload, fmt or track.best_format)
+    segs = parse_any(payload, fmt)
     t_parse = time.perf_counter() - t0
 
     return {

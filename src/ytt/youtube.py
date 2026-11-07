@@ -206,19 +206,21 @@ class YouTube:
                 time.sleep(0.8 * (attempt + 1))
         raise VideoError("could not fetch caption payload: %s" % last)
 
-    def fetch_track(self, track: Track, video_url: str) -> Tuple[str, str]:
+    def fetch_track(self, track: Track, video_url: str) -> Tuple[str, Optional[str]]:
         """Fetch a caption payload, preferring direct HTTP over yt-dlp.
 
         Tries each available format until one yields a payload we can actually
         parse, since YouTube occasionally serves an HTML error page for a track.
-        Returns (payload, format).
+        Returns (payload, format). The format is ``None`` when it is not known
+        (cache hits and the yt-dlp fallback), so callers should let
+        :func:`parse_any` detect it from the payload.
         """
         from .captions import parse_any
 
         cached = self.cache.get_text("cap", video_url, track.lang, track.kind)
         if cached is not None:
             self.log.debug("caption cache hit (%s)" % track.lang)
-            return cached, ""
+            return cached, None
 
         order = [f for f in PREFERRED_FORMATS if f in track.urls]
         order += [f for f in track.urls if f not in order]
@@ -235,7 +237,7 @@ class YouTube:
                 # way, so go straight to the yt-dlp fallback.
                 self.log.debug("rate limited; trying yt-dlp fallback")
                 try:
-                    return self._fetch_via_ytdlp(track, video_url), ""
+                    return self._fetch_via_ytdlp(track, video_url), None
                 except VideoError as exc:
                     raise RateLimited(str(exc))
             except Exception as exc:
@@ -243,7 +245,7 @@ class YouTube:
                 self.log.debug("format %s unusable for %s: %s" % (fmt, track.lang, exc))
 
         self.log.debug("all direct formats failed (%s); falling back to yt-dlp" % last_exc)
-        return self._fetch_via_ytdlp(track, video_url), ""
+        return self._fetch_via_ytdlp(track, video_url), None
 
     def _fetch_via_ytdlp(self, track: Track, video_url: str) -> str:
         """Last-resort path: let yt-dlp write one subtitle file, then read it."""
