@@ -69,7 +69,7 @@ def bench(vid):
 def main():
     print("Caption path (measured)\n" + "=" * 78)
     rows = []
-    for vid, note in VIDEOS:
+    for vid, _note in VIDEOS:
         try:
             r = bench(vid)
         except Exception as exc:

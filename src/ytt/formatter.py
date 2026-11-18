@@ -30,7 +30,7 @@ def _wrap(text: str, width: int = 42, max_lines: int = 2) -> str:
     if len(lines) > max_lines:
         head = lines[: max_lines - 1]
         tail = " ".join(lines[max_lines - 1 :])
-        lines = head + [textwrap.shorten(tail, width=width, placeholder="…")]
+        lines = [*head, textwrap.shorten(tail, width=width, placeholder="…")]
     return "\n".join(lines)
 
 

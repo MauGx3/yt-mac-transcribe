@@ -17,7 +17,7 @@ class TestExitCodes(unittest.TestCase):
         with mock.patch.object(cli, "YouTube"), mock.patch.object(
             cli, "process_one", return_value=result
         ), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-            return cli.main(argv + ["--no-cache"])
+            return cli.main([*argv, "--no-cache"])
 
     def test_list_tracks_exits_zero(self):
         self.assertEqual(self.run_main(["https://youtu.be/x", "--list-tracks"], (None, [])), 0)

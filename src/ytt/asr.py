@@ -307,7 +307,7 @@ def transcribe_audio(
             raise ASRUnavailable("%s failed: %s" % (label, proc.stderr.strip()[-300:]))
         if not os.path.exists(json_path):
             raise ASRUnavailable("%s wrote no JSON output" % label)
-        with open(json_path, "r", encoding="utf-8") as fh:
+        with open(json_path, encoding="utf-8") as fh:
             return parse(json.load(fh))
     finally:
         if keep_audio and os.path.exists(wav):

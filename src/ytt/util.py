@@ -40,7 +40,7 @@ class Timer:
 
 def fmt_duration(ms: int) -> str:
     """1120000 -> '18:40'  (or '1:02:03' past an hour)."""
-    s = max(0, int(round(ms / 1000.0)))
+    s = max(0, round(ms / 1000.0))
     h, rem = divmod(s, 3600)
     m, s = divmod(rem, 60)
     if h:

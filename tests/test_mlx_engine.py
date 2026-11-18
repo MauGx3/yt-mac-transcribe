@@ -32,23 +32,21 @@ class TestModels(unittest.TestCase):
             asr.resolve_mlx_model("nonsense")
 
     def test_cache_detection(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.dict(os.environ, {"HF_HUB_CACHE": tmp}):
-                repo = "mlx-community/whisper-small.en-mlx"
-                self.assertFalse(asr.mlx_model_cached(repo))
-                os.makedirs(
-                    os.path.join(
-                        tmp, "models--mlx-community--whisper-small.en-mlx", "snapshots", "abc"
-                    )
-                )
-                self.assertTrue(asr.mlx_model_cached(repo))
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(
+            os.environ, {"HF_HUB_CACHE": tmp}
+        ):
+            repo = "mlx-community/whisper-small.en-mlx"
+            self.assertFalse(asr.mlx_model_cached(repo))
+            os.makedirs(
+                os.path.join(tmp, "models--mlx-community--whisper-small.en-mlx", "snapshots", "abc")
+            )
+            self.assertTrue(asr.mlx_model_cached(repo))
 
     def test_download_without_hf_cli_explains(self):
         with mock.patch.object(asr, "mlx_model_cached", return_value=False), mock.patch.object(
             asr, "_which", return_value=None
-        ):
-            with self.assertRaises(asr.ASRUnavailable) as ctx:
-                asr.download_mlx_model("tiny.en", Log(quiet=True))
+        ), self.assertRaises(asr.ASRUnavailable) as ctx:
+            asr.download_mlx_model("tiny.en", Log(quiet=True))
         self.assertIn("first use", str(ctx.exception))
 
     def test_download_runs_hf_cli(self):

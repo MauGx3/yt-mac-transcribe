@@ -122,11 +122,11 @@ class MLXModel:
     def __init__(self, name, max_tokens=None):
         try:
             from mlx_lm import generate, load
-        except ImportError:
+        except ImportError as exc:
             raise SystemExit(
                 "rewrite_with_local_model: mlx-lm is not installed. Install it "
                 "on an Apple silicon Mac with: python3 -m pip install mlx-lm"
-            )
+            ) from exc
         log("loading %s" % name)
         self._generate = generate
         self._model, self._tokenizer = load(name)

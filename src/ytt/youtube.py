@@ -104,7 +104,7 @@ class YouTube:
 
     # ---------------------------------------------------------------- metadata
     def _run(self, args: List[str], timeout: int = 180) -> subprocess.CompletedProcess:
-        cmd = [self.ytdlp] + args
+        cmd = [self.ytdlp, *args]
         if self.cookies:
             cmd += ["--cookies-from-browser", self.cookies]
         self.log.debug("$ " + " ".join(cmd))
@@ -120,8 +120,8 @@ class YouTube:
             raise VideoError(_clean_error(proc.stderr) or "yt-dlp failed to read %s" % url)
         try:
             meta = json.loads(proc.stdout)
-        except ValueError:
-            raise VideoError("could not parse yt-dlp metadata for %s" % url)
+        except ValueError as exc:
+            raise VideoError("could not parse yt-dlp metadata for %s" % url) from exc
         self.cache.set_json(meta, "meta", url)
         return meta
 
@@ -197,7 +197,7 @@ class YouTube:
                     if attempt + 1 < retries:
                         time.sleep(4.0)
                         continue
-                    raise RateLimited("HTTP 429 Too Many Requests")
+                    raise RateLimited("HTTP 429 Too Many Requests") from exc
                 last = exc
                 if exc.code in (500, 502, 503, 504):
                     time.sleep(1.2 * (attempt + 1))
@@ -241,7 +241,7 @@ class YouTube:
                 try:
                     return self._fetch_via_ytdlp(track, video_url), None
                 except VideoError as exc:
-                    raise RateLimited(str(exc))
+                    raise RateLimited(str(exc)) from exc
             except Exception as exc:
                 last_exc = exc
                 self.log.debug("format %s unusable for %s: %s" % (fmt, track.lang, exc))
@@ -281,7 +281,7 @@ class YouTube:
                         "and retry, or pass --cookies-from-browser to use a session."
                     )
                 raise VideoError("no caption file produced: %s" % err)
-            with open(files[0], "r", encoding="utf-8", errors="replace") as fh:
+            with open(files[0], encoding="utf-8", errors="replace") as fh:
                 return fh.read()
         finally:
             _shutil.rmtree(tmpdir, ignore_errors=True)

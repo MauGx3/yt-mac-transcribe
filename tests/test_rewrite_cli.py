@@ -69,7 +69,7 @@ class TestParser(unittest.TestCase):
 class TestWriteOutputs(unittest.TestCase):
     def args(self, out, command):
         return cli.build_parser().parse_args(
-            ["u", "-o", out, "-f", "txt", "json", "--rewrite-command"] + command
+            ["u", "-o", out, "-f", "txt", "json", "--rewrite-command", *command]
         )
 
     def test_original_written_even_when_rewrite_fails(self):

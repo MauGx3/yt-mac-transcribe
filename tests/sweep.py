@@ -28,7 +28,6 @@ QUERIES = [
 
 
 def collect(limit):
-    yt = YouTube(Log(quiet=True))
     ids, seen = [], set()
     for q in QUERIES:
         proc = subprocess.run(

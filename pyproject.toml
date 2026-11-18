@@ -45,6 +45,10 @@ ignore = [
   "UP006",
   "UP031",
   "UP045",
+  # En dashes in caption text handling are intentional.
+  "RUF001",
+  # Ternaries are not always clearer than an if/else with comments.
+  "SIM108",
 ]
 
 [tool.ruff.lint.isort]

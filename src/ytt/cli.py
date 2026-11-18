@@ -177,7 +177,7 @@ class RewriteFailed(RuntimeError):
 def collect_urls(args) -> List[str]:
     urls = list(args.urls)
     if args.batch:
-        with open(args.batch, "r", encoding="utf-8") as fh:
+        with open(args.batch, encoding="utf-8") as fh:
             for line in fh:
                 line = line.split("#", 1)[0].strip()
                 if line:

@@ -153,8 +153,8 @@ def parse_mlx_json(payload: Dict[str, Any]) -> List[Segment]:
             continue
         segments.append(
             Segment(
-                int(round(float(item.get("start") or 0) * 1000)),
-                int(round(float(item.get("end") or 0) * 1000)),
+                round(float(item.get("start") or 0) * 1000),
+                round(float(item.get("end") or 0) * 1000),
                 text,
             )
         )
