@@ -75,7 +75,8 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     static func arguments(for mode: TranscriptionMode, url: String, settings: AppSettings) -> [String] {
-        var args = [url, "-f", "txt", "-o", settings.outputDirectory.path]
+        var args = [url, "-f", "txt", "-o", settings.outputDirectory.path,
+                    "--engine", settings.engine.rawValue, "--model", settings.model]
         if case .review = mode {
             args += ["--rewrite-command"] + settings.rewriteCommand
         }
