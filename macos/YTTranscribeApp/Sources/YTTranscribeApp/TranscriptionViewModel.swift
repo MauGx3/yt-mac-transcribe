@@ -9,24 +9,78 @@ final class TranscriptionViewModel: ObservableObject {
         case awaitingReviewChoice(TranscriptFiles)
         case rewriting
         case completed(TranscriptFiles)
+        case completedBatch(BatchSummary)
         case failed(String)
     }
 
+    struct BatchSummary: Equatable {
+        let kind: RunKind
+        let requested: Int
+        let files: [TranscriptFiles]
+    }
+
     @Published private(set) var state: State = .idle
+    @Published private(set) var formats: [OutputFormat]
     private(set) var settings: AppSettings
     var canReview: Bool { !settings.rewriteCommand.isEmpty }
     private let runner: any TranscriptionRunning
     private var activeTask: Task<Void, Never>?
     private var activeOperationID: UUID?
     private var activeURL: String?
+    private var activeRecordID: UUID?
+    private let library: LibraryStore?
 
-    init(settings: AppSettings, runner: any TranscriptionRunning = TranscriptionRunner()) {
+    /// `library == nil` disables history (used by tests and previews).
+    init(settings: AppSettings, runner: any TranscriptionRunning = TranscriptionRunner(), library: LibraryStore? = nil) {
         self.settings = settings
+        self.formats = settings.effectiveFormats
         self.runner = runner
+        self.library = library
     }
 
     func updateSettings(_ settings: AppSettings) {
         self.settings = settings
+        formats = settings.effectiveFormats
+    }
+
+    /// Chooses the output formats for later runs and remembers the choice.
+    func setFormats(_ newFormats: [OutputFormat]) {
+        settings.formats = OutputFormat.normalized(newFormats)
+        formats = settings.formats
+        settings.persist()
+    }
+
+    /// Transcribes several videos, or every video of a playlist.
+    func beginBatch(urls: [String], playlist: Bool) {
+        let operationID = replaceActiveOperation()
+        activeTask = Task { await runBatch(urls: urls, playlist: playlist, operationID: operationID) }
+    }
+
+    func startBatch(urls: [String], playlist: Bool) async {
+        await runBatch(urls: urls, playlist: playlist, operationID: replaceActiveOperation())
+    }
+
+    private func runBatch(urls: [String], playlist: Bool, operationID: UUID) async {
+        guard isCurrent(operationID) else { return }
+        guard !urls.isEmpty else {
+            finish(operationID, with: .failed("Enter at least one URL."))
+            return
+        }
+        activeURL = nil
+        activeRecordID = nil
+        state = .transcribing
+        let kind: RunKind = playlist ? .playlist : .batch
+        do {
+            let groups = try await runner.transcribeMany(urls: urls, playlist: playlist, settings: settings)
+            // The files exist even if the run was cancelled meanwhile, so
+            // they belong in the library either way.
+            for group in groups {
+                library?.add(TranscriptRecord.make(files: group, sourceURL: urls[0], kind: kind))
+            }
+            finish(operationID, with: .completedBatch(BatchSummary(kind: kind, requested: urls.count, files: groups)))
+        } catch {
+            finish(operationID, with: .failed(error.localizedDescription))
+        }
     }
 
     // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
@@ -63,9 +117,15 @@ final class TranscriptionViewModel: ObservableObject {
     private func transcribe(url: String, operationID: UUID) async {
         guard isCurrent(operationID) else { return }
         activeURL = url
+        activeRecordID = nil
         state = .transcribing
         do {
             let files = try await runner.transcribe(url: url, settings: settings)
+            if let library {
+                let record = TranscriptRecord.make(files: files, sourceURL: url, kind: .single)
+                activeRecordID = record.id
+                library.add(record)
+            }
             finish(operationID, with: .awaitingReviewChoice(files))
         } catch {
             finish(operationID, with: .failed(error.localizedDescription))
@@ -99,6 +159,10 @@ final class TranscriptionViewModel: ObservableObject {
         state = .rewriting
         do {
             let files = try await runner.review(url: url, settings: settings)
+            if let id = activeRecordID, var record = library?.record(id: id) {
+                record.reviewed = files.reviewed
+                library?.update(record)
+            }
             finish(operationID, with: .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed)))
         } catch {
             finish(operationID, with: .failed(error.localizedDescription))

@@ -15,6 +15,9 @@
 		A10000000000000000000036 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* AppSettingsTests.swift */; };
 		A10000000000000000000037 /* TranscriptionRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* TranscriptionRunnerTests.swift */; };
 		A10000000000000000000038 /* TranscriptionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000028 /* TranscriptionViewModelTests.swift */; };
+		A10000000000000000000039 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000029 /* Library.swift */; };
+		A1000000000000000000003A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002A /* LibraryView.swift */; };
+		A1000000000000000000003B /* LibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* LibraryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +41,9 @@
 		A10000000000000000000026 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000027 /* TranscriptionRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionRunnerTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000028 /* TranscriptionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionViewModelTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000029 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		A1000000000000000000002A /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		A1000000000000000000002B /* LibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +87,8 @@
 			children = (
 				A10000000000000000000021 /* AppSettings.swift */,
 				A10000000000000000000022 /* ContentView.swift */,
+				A10000000000000000000029 /* Library.swift */,
+				A1000000000000000000002A /* LibraryView.swift */,
 				A10000000000000000000023 /* TranscriptionRunner.swift */,
 				A10000000000000000000024 /* TranscriptionViewModel.swift */,
 				A10000000000000000000025 /* YTTranscribeApp.swift */,
@@ -92,6 +100,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000026 /* AppSettingsTests.swift */,
+				A1000000000000000000002B /* LibraryTests.swift */,
 				A10000000000000000000027 /* TranscriptionRunnerTests.swift */,
 				A10000000000000000000028 /* TranscriptionViewModelTests.swift */,
 			);
@@ -213,6 +222,8 @@
 			files = (
 				A10000000000000000000031 /* AppSettings.swift in Sources */,
 				A10000000000000000000032 /* ContentView.swift in Sources */,
+				A10000000000000000000039 /* Library.swift in Sources */,
+				A1000000000000000000003A /* LibraryView.swift in Sources */,
 				A10000000000000000000033 /* TranscriptionRunner.swift in Sources */,
 				A10000000000000000000034 /* TranscriptionViewModel.swift in Sources */,
 				A10000000000000000000035 /* YTTranscribeApp.swift in Sources */,
@@ -224,6 +235,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000036 /* AppSettingsTests.swift in Sources */,
+				A1000000000000000000003B /* LibraryTests.swift in Sources */,
 				A10000000000000000000037 /* TranscriptionRunnerTests.swift in Sources */,
 				A10000000000000000000038 /* TranscriptionViewModelTests.swift in Sources */,
 			);
