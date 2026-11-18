@@ -1,4 +1,5 @@
 """Output writers: txt, srt, vtt, json, md."""
+
 from __future__ import annotations
 
 import json
@@ -28,7 +29,7 @@ def _wrap(text: str, width: int = 42, max_lines: int = 2) -> str:
     lines = textwrap.wrap(text, width=width, break_long_words=False, break_on_hyphens=False)
     if len(lines) > max_lines:
         head = lines[: max_lines - 1]
-        tail = " ".join(lines[max_lines - 1:])
+        tail = " ".join(lines[max_lines - 1 :])
         lines = head + [textwrap.shorten(tail, width=width, placeholder="…")]
     return "\n".join(lines)
 
@@ -46,7 +47,9 @@ def render_txt(t: Transcript, timestamps: bool = False, paragraphs: bool = True)
 
     if not timestamps:
         return t.plain_text().strip() + "\n"
-    return "\n".join("[%s] %s" % (fmt_duration(s.start_ms), s.text) for s in t.segments).strip() + "\n"
+    return (
+        "\n".join("[%s] %s" % (fmt_duration(s.start_ms), s.text) for s in t.segments).strip() + "\n"
+    )
 
 
 def render_srt(t: Transcript) -> str:
@@ -84,9 +87,7 @@ def render_json(t: Transcript, include_words: bool = True) -> str:
         "fetched_at": t.fetched_at,
         "warnings": t.warnings,
         "stats": {"segments": len(t.segments), "words": t.words, "chars": t.chars},
-        "segments": [
-            _seg_json(s, include_words) for s in t.segments
-        ],
+        "segments": [_seg_json(s, include_words) for s in t.segments],
     }
     # [AI-GENERATED] Rewrite companions record which engine produced the input.
     if t.extra.get("rewritten_from"):

@@ -1,4 +1,5 @@
 """Result model shared by the caption and ASR engines."""
+
 from __future__ import annotations
 
 import time
@@ -18,8 +19,8 @@ class Transcript:
     channel: str = ""
     lang: str = ""
     track_name: str = ""
-    kind: str = "manual"        # manual | auto | auto-translated | asr
-    engine: str = "captions"    # captions | asr
+    kind: str = "manual"  # manual | auto | auto-translated | asr
+    engine: str = "captions"  # captions | asr
     fetched_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S%z"))
     warnings: List[str] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)

@@ -1,4 +1,5 @@
 """Exit-code tests for main(). No network."""
+
 import contextlib
 import io
 import os
@@ -13,10 +14,9 @@ from ytt import cli
 
 class TestExitCodes(unittest.TestCase):
     def run_main(self, argv, result):
-        with mock.patch.object(cli, "YouTube"), \
-                mock.patch.object(cli, "process_one", return_value=result), \
-                contextlib.redirect_stderr(io.StringIO()), \
-                contextlib.redirect_stdout(io.StringIO()):
+        with mock.patch.object(cli, "YouTube"), mock.patch.object(
+            cli, "process_one", return_value=result
+        ), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
             return cli.main(argv + ["--no-cache"])
 
     def test_list_tracks_exits_zero(self):
@@ -27,12 +27,20 @@ class TestExitCodes(unittest.TestCase):
 
     def run_batch(self, results):
         """Run two URLs where process_one yields `results` in order."""
-        with mock.patch.object(cli, "YouTube"), \
-                mock.patch.object(cli, "process_one", side_effect=results), \
-                contextlib.redirect_stderr(io.StringIO()), \
-                contextlib.redirect_stdout(io.StringIO()):
-            return cli.main(["https://youtu.be/a", "https://youtu.be/b",
-                             "--no-cache", "--delay", "0", "--retries", "0"])
+        with mock.patch.object(cli, "YouTube"), mock.patch.object(
+            cli, "process_one", side_effect=results
+        ), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            return cli.main(
+                [
+                    "https://youtu.be/a",
+                    "https://youtu.be/b",
+                    "--no-cache",
+                    "--delay",
+                    "0",
+                    "--retries",
+                    "0",
+                ]
+            )
 
     def test_batch_all_succeed_exits_zero(self):
         done = (object(), [])

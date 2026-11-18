@@ -10,6 +10,7 @@ Two reasons this matters:
 
 Deliberately dependency-free and easy to disable (`--no-cache`).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,9 +27,7 @@ META_TTL = 3600  # one hour
 
 
 def cache_dir() -> str:
-    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(
-        os.path.expanduser("~"), ".cache"
-    )
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
     path = os.path.join(base, "yt-transcribe")
     try:
         os.makedirs(path, exist_ok=True)

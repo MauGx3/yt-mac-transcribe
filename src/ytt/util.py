@@ -1,4 +1,5 @@
 """Small shared helpers: logging, timing, formatting."""
+
 from __future__ import annotations
 
 import re
@@ -65,7 +66,7 @@ def sanitize_filename(name: str, max_len: int = 80) -> str:
     for ch in name:
         if ch.isalnum() or ch in " -_()[]&,+.'":
             keep.append(ch)
-        elif ch in "/\\:|*?\"<>":
+        elif ch in '/\\:|*?"<>':
             keep.append("-")
         elif ch.isspace():
             keep.append(" ")

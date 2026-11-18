@@ -3,6 +3,7 @@
 One `yt-dlp -J` call gives us metadata *and* the caption-track URLs, so we never
 need to download audio or run ffmpeg on the caption path.
 """
+
 from __future__ import annotations
 
 import json
@@ -260,9 +261,12 @@ class YouTube:
             auto = track.kind != "manual"
             args = [
                 "--skip-download",
-                "--sub-format", "json3/vtt/srt",
-                "--sub-langs", track.lang,
-                "-o", os.path.join(tmpdir, "sub"),
+                "--sub-format",
+                "json3/vtt/srt",
+                "--sub-langs",
+                track.lang,
+                "-o",
+                os.path.join(tmpdir, "sub"),
                 "--no-warnings",
                 "--write-auto-subs" if auto else "--write-subs",
                 video_url,
@@ -288,5 +292,5 @@ def _clean_error(stderr: str) -> str:
     lines = [ln.strip() for ln in (stderr or "").splitlines() if ln.strip()]
     for ln in reversed(lines):
         if ln.startswith("ERROR:"):
-            return ln[len("ERROR:"):].strip()
+            return ln[len("ERROR:") :].strip()
     return lines[-1] if lines else ""

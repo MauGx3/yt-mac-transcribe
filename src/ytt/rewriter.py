@@ -1,4 +1,5 @@
 """Optional local context-aware transcript rewriting."""
+
 from __future__ import annotations
 
 import json
@@ -12,15 +13,18 @@ from .segments import Segment
 def _request_payload(transcript: Transcript) -> dict:
     segments = []
     for i, segment in enumerate(transcript.segments):
-        segments.append({
-            "index": i,
-            "start_ms": segment.start_ms,
-            "end_ms": segment.end_ms,
-            "text": segment.text,
-            "previous_text": transcript.segments[i - 1].text if i else "",
-            "next_text": transcript.segments[i + 1].text
-            if i + 1 < len(transcript.segments) else "",
-        })
+        segments.append(
+            {
+                "index": i,
+                "start_ms": segment.start_ms,
+                "end_ms": segment.end_ms,
+                "text": segment.text,
+                "previous_text": transcript.segments[i - 1].text if i else "",
+                "next_text": transcript.segments[i + 1].text
+                if i + 1 < len(transcript.segments)
+                else "",
+            }
+        )
     return {
         "title": transcript.title,
         "url": transcript.url,
@@ -72,12 +76,14 @@ def rewrite_transcript(
     for original, item in zip(transcript.segments, rewritten):
         if not isinstance(item, dict) or not isinstance(item.get("text"), str):
             raise ValueError("each rewritten segment must contain string text")
-        segments.append(Segment(
-            original.start_ms,
-            original.end_ms,
-            item["text"].strip(),
-            list(original.words),
-        ))
+        segments.append(
+            Segment(
+                original.start_ms,
+                original.end_ms,
+                item["text"].strip(),
+                list(original.words),
+            )
+        )
 
     extra = dict(transcript.extra)
     extra["rewritten_from"] = transcript.engine

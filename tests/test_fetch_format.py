@@ -1,4 +1,5 @@
 """Regression tests: caption format must not be assumed on cache hits. No network."""
+
 import os
 import sys
 import tempfile
@@ -25,8 +26,13 @@ class TestFetchFormat(unittest.TestCase):
         self.yt = YouTube.__new__(YouTube)  # bypass yt-dlp presence check
         self.yt.log = Log(quiet=True)
         self.yt.cache = Cache(enabled=True)
-        self.track = Track(lang="en", name="en", kind="auto", formats=["json3", "vtt"],
-                           urls={"json3": "http://x/a.json3", "vtt": "http://x/a.vtt"})
+        self.track = Track(
+            lang="en",
+            name="en",
+            kind="auto",
+            formats=["json3", "vtt"],
+            urls={"json3": "http://x/a.json3", "vtt": "http://x/a.vtt"},
+        )
 
     def test_cached_vtt_is_not_parsed_as_json3(self):
         self.yt.cache.set_text(VTT, "cap", "http://v", "en", "auto")
@@ -37,8 +43,9 @@ class TestFetchFormat(unittest.TestCase):
 
     def test_ytdlp_fallback_reports_unknown_format(self):
         self.yt.cache = Cache(enabled=False)
-        with mock.patch.object(self.yt, "fetch_text", side_effect=ValueError("bad")), \
-                mock.patch.object(self.yt, "_fetch_via_ytdlp", return_value=VTT):
+        with mock.patch.object(
+            self.yt, "fetch_text", side_effect=ValueError("bad")
+        ), mock.patch.object(self.yt, "_fetch_via_ytdlp", return_value=VTT):
             payload, fmt = self.yt.fetch_track(self.track, "http://v")
         self.assertIsNone(fmt)
         self.assertEqual(parse_any(payload, fmt)[0].text, "hello world")

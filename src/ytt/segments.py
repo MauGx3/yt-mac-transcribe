@@ -4,6 +4,7 @@ Both YouTube's caption tracks and whisper.cpp emit loosely timed, loosely
 punctuated lines. Everything downstream (formatters) expects a tidy, ordered,
 non-overlapping list of Segments, so all normalisation lives here.
 """
+
 from __future__ import annotations
 
 import re
@@ -152,8 +153,10 @@ def merge_paragraphs(
             too_long = chars + len(seg.text) > max_chars
             # Only split on length at a sentence boundary; otherwise keep going
             # a little (up to 1.5x) so we don't cut mid-sentence.
-            if long_gap or (too_long and last_was_sentence_end) or (
-                too_long and chars > max_chars * 1.5
+            if (
+                long_gap
+                or (too_long and last_was_sentence_end)
+                or (too_long and chars > max_chars * 1.5)
             ):
                 flush()
         if not buf:
@@ -224,7 +227,7 @@ def quality_report(segments: List[Segment], duration_ms: int) -> List[str]:
         window = 400
         ratios = []
         for i in range(0, len(toks) - window + 1, window):
-            chunk = toks[i:i + window]
+            chunk = toks[i : i + window]
             ratios.append(len(set(chunk)) / float(window))
         if ratios:
             mean_ratio = sum(ratios) / len(ratios)

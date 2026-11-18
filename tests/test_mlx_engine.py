@@ -1,4 +1,5 @@
 """MLX Whisper engine: model mapping, engine choice, parsing, command. No network."""
+
 import os
 import sys
 import tempfile
@@ -17,7 +18,9 @@ NONE = {"yt-dlp": "/y", "ffmpeg": "/f", "whisper.cpp": None, "mlx_whisper": None
 class TestModels(unittest.TestCase):
     def test_short_names_map_to_mlx_community_repos(self):
         self.assertEqual(asr.resolve_mlx_model("small.en"), "mlx-community/whisper-small.en-mlx")
-        self.assertEqual(asr.resolve_mlx_model("large-v3-turbo"), "mlx-community/whisper-large-v3-turbo")
+        self.assertEqual(
+            asr.resolve_mlx_model("large-v3-turbo"), "mlx-community/whisper-large-v3-turbo"
+        )
 
     def test_every_default_hint_has_an_mlx_mapping(self):
         for name in asr.MODEL_HINTS:
@@ -33,21 +36,26 @@ class TestModels(unittest.TestCase):
             with mock.patch.dict(os.environ, {"HF_HUB_CACHE": tmp}):
                 repo = "mlx-community/whisper-small.en-mlx"
                 self.assertFalse(asr.mlx_model_cached(repo))
-                os.makedirs(os.path.join(tmp, "models--mlx-community--whisper-small.en-mlx", "snapshots", "abc"))
+                os.makedirs(
+                    os.path.join(
+                        tmp, "models--mlx-community--whisper-small.en-mlx", "snapshots", "abc"
+                    )
+                )
                 self.assertTrue(asr.mlx_model_cached(repo))
 
     def test_download_without_hf_cli_explains(self):
-        with mock.patch.object(asr, "mlx_model_cached", return_value=False), \
-                mock.patch.object(asr, "_which", return_value=None):
+        with mock.patch.object(asr, "mlx_model_cached", return_value=False), mock.patch.object(
+            asr, "_which", return_value=None
+        ):
             with self.assertRaises(asr.ASRUnavailable) as ctx:
                 asr.download_mlx_model("tiny.en", Log(quiet=True))
         self.assertIn("first use", str(ctx.exception))
 
     def test_download_runs_hf_cli(self):
         ok = mock.Mock(returncode=0, stderr="")
-        with mock.patch.object(asr, "mlx_model_cached", return_value=False), \
-                mock.patch.object(asr, "_which", return_value="/bin/hf"), \
-                mock.patch.object(asr.subprocess, "run", return_value=ok) as run:
+        with mock.patch.object(asr, "mlx_model_cached", return_value=False), mock.patch.object(
+            asr, "_which", return_value="/bin/hf"
+        ), mock.patch.object(asr.subprocess, "run", return_value=ok) as run:
             repo = asr.download_mlx_model("tiny.en", Log(quiet=True))
         self.assertEqual(run.call_args[0][0], ["/bin/hf", "download", repo])
 
@@ -77,13 +85,19 @@ class TestEngineChoice(unittest.TestCase):
 
 class TestParsingAndCommand(unittest.TestCase):
     def test_parse_mlx_json_seconds_to_ms(self):
-        segs = parse_mlx_json({"segments": [
-            {"start": 0.0, "end": 2.5, "text": " Hello there."},
-            {"start": 2.5, "end": 4.0, "text": "   "},
-            {"start": 4.0, "end": 6.25, "text": " General Kenobi."},
-        ]})
-        self.assertEqual([(s.start_ms, s.end_ms, s.text) for s in segs],
-                         [(0, 2500, "Hello there."), (4000, 6250, "General Kenobi.")])
+        segs = parse_mlx_json(
+            {
+                "segments": [
+                    {"start": 0.0, "end": 2.5, "text": " Hello there."},
+                    {"start": 2.5, "end": 4.0, "text": "   "},
+                    {"start": 4.0, "end": 6.25, "text": " General Kenobi."},
+                ]
+            }
+        )
+        self.assertEqual(
+            [(s.start_ms, s.end_ms, s.text) for s in segs],
+            [(0, 2500, "Hello there."), (4000, 6250, "General Kenobi.")],
+        )
 
     def test_command_flags(self):
         cmd = asr.mlx_command("/m", "r/x", "a.wav", "/o", "pt")

@@ -3,6 +3,7 @@
 Checks that parsing never raises, timings are ordered, and no duplicate or
 overlapping cues survive. Usage: python3 tests/sweep.py [n]
 """
+
 import json
 import os
 import subprocess
@@ -32,7 +33,9 @@ def collect(limit):
     for q in QUERIES:
         proc = subprocess.run(
             ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", q],
-            capture_output=True, text=True, timeout=180,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
         try:
             data = json.loads(proc.stdout)
@@ -52,8 +55,7 @@ def main():
     print("probing %d videos\n" % len(ids))
 
     yt = YouTube(Log(quiet=True))
-    stats = {"manual": 0, "auto": 0, "auto-translated": 0, "none": 0,
-             "throttled": 0, "error": 0}
+    stats = {"manual": 0, "auto": 0, "auto-translated": 0, "none": 0, "throttled": 0, "error": 0}
     delay = float(os.environ.get("SWEEP_DELAY", "2"))
     failures, warnings = [], []
 
@@ -113,9 +115,10 @@ def main():
         if problems:
             failures.append((vid, problems))
         time.sleep(delay)
-        print("%2d. %-12s %s %-15s %5d segs  %s  %s" % (
-            i, vid, flag, track.kind, len(segs), title,
-            "" if not problems else str(problems)))
+        print(
+            "%2d. %-12s %s %-15s %5d segs  %s  %s"
+            % (i, vid, flag, track.kind, len(segs), title, "" if not problems else str(problems))
+        )
 
     print("\n--- summary ---")
     for k, v in stats.items():

@@ -3,6 +3,7 @@
 json3 is preferred: it is the smallest payload YouTube offers that still keeps
 exact timings, and it carries per-word offsets for auto captions.
 """
+
 from __future__ import annotations
 
 import json
@@ -32,7 +33,7 @@ def parse_json3(payload: Any) -> List[Segment]:
         payload = json.loads(payload)
 
     segments: List[Segment] = []
-    for ev in (payload.get("events") or []):
+    for ev in payload.get("events") or []:
         if ev.get("aAppend"):
             continue  # rolling-window newline marker, not speech
         parts = ev.get("segs") or []
@@ -101,7 +102,7 @@ def parse_vtt(text: str) -> List[Segment]:
             continue
         start = _ts_to_ms(m.group(1), m.group(2), m.group(3), m.group(4))
         end = _ts_to_ms(m.group(5), m.group(6), m.group(7), m.group(8))
-        body = " ".join(lines[idx + 1:])
+        body = " ".join(lines[idx + 1 :])
         body = _VTT_TIMESTAMP_RE.sub("", body)
         body = _TAG_RE.sub("", body)
         body = normalize_text(body)
@@ -123,7 +124,7 @@ def parse_srt(text: str) -> List[Segment]:
             continue
         start = _ts_to_ms(m.group(1), m.group(2), m.group(3), m.group(4))
         end = _ts_to_ms(m.group(5), m.group(6), m.group(7), m.group(8))
-        body = block[m.end():].strip()
+        body = block[m.end() :].strip()
         body = _TAG_RE.sub("", body)
         body = normalize_text(body)
         if body:
@@ -139,9 +140,7 @@ def parse_whisper_json(payload: Dict[str, Any]) -> List[Segment]:
         text = normalize_text(item.get("text") or "")
         if not text:
             continue
-        segments.append(
-            Segment(int(offsets.get("from") or 0), int(offsets.get("to") or 0), text)
-        )
+        segments.append(Segment(int(offsets.get("from") or 0), int(offsets.get("to") or 0), text))
     return clean_segments(segments)
 
 
@@ -152,8 +151,13 @@ def parse_mlx_json(payload: Dict[str, Any]) -> List[Segment]:
         text = normalize_text(item.get("text") or "")
         if not text:
             continue
-        segments.append(Segment(int(round(float(item.get("start") or 0) * 1000)),
-                                int(round(float(item.get("end") or 0) * 1000)), text))
+        segments.append(
+            Segment(
+                int(round(float(item.get("start") or 0) * 1000)),
+                int(round(float(item.get("end") or 0) * 1000)),
+                text,
+            )
+        )
     return clean_segments(segments)
 
 

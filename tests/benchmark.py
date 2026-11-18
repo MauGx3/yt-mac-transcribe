@@ -6,6 +6,7 @@ ASR tier needs ffmpeg + a downloaded model that may not be installed.
 
 Usage: python3 tests/benchmark.py
 """
+
 import os
 import statistics
 import sys
@@ -78,10 +79,21 @@ def main():
             print("  %-12s no captions" % vid)
             continue
         rows.append(r)
-        print("  %-12s %5s  %6.1fs video  %5.1f KB  %4d segs  "
-              "meta %.2fs + fetch %.2fs + parse %.3fs = %.2fs"
-              % (vid, r["kind"], r["duration"], r["bytes"] / 1024.0, r["segments"],
-                 r["t_meta"], r["t_fetch"], r["t_parse"], r["t_total"]))
+        print(
+            "  %-12s %5s  %6.1fs video  %5.1f KB  %4d segs  "
+            "meta %.2fs + fetch %.2fs + parse %.3fs = %.2fs"
+            % (
+                vid,
+                r["kind"],
+                r["duration"],
+                r["bytes"] / 1024.0,
+                r["segments"],
+                r["t_meta"],
+                r["t_fetch"],
+                r["t_parse"],
+                r["t_total"],
+            )
+        )
         print("               %s" % r["title"])
 
     if not rows:
@@ -94,12 +106,16 @@ def main():
         d = r["duration"]
         est_small = d / ASR_RTF["small.en"] + ASR_FIXED_OVERHEAD
         est_med = d / ASR_RTF["medium.en"] + ASR_FIXED_OVERHEAD
-        print("  %-22s %9.2fs %9.1fs %9.1fs %7.0fx"
-              % (r["vid"], r["t_total"], est_small, est_med, est_small / r["t_total"]))
+        print(
+            "  %-22s %9.2fs %9.1fs %9.1fs %7.0fx"
+            % (r["vid"], r["t_total"], est_small, est_med, est_small / r["t_total"])
+        )
 
     totals = [r["t_total"] for r in rows]
-    print("\n  caption path: mean %.2fs, median %.2fs over %d videos"
-          % (statistics.mean(totals), statistics.median(totals), len(totals)))
+    print(
+        "\n  caption path: mean %.2fs, median %.2fs over %d videos"
+        % (statistics.mean(totals), statistics.median(totals), len(totals))
+    )
     print("  ASR estimates assume whisper.cpp + Core ML on Apple silicon and are")
     print("  not measured; they exclude model download (0.5-3 GB, one time).")
     return 0
