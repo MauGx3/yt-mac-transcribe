@@ -16,6 +16,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   uncertain spans per segment. Groundwork for the app's diff review screen.
 - `tools/rewrite_with_local_model.py` reports changed words the model was unsure
   about (`--unsure-below`, default 0.5) from MLX-LM token probabilities.
+- macOS app: after an AI enhancement, a review screen shows each change with
+  Accept/Reject, labels "AI unsure" and "Unclear audio" spots, and saves the
+  final `<name>.reviewed.txt`. The AI output is now called "Enhanced".
 
 ### Changed
 

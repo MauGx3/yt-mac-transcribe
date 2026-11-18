@@ -64,7 +64,7 @@ private struct LibraryRow: View {
                 Button("Open") { if let file = record.primaryFile { NSWorkspace.shared.open(file) } }
                     .disabled(missing)
                 if let reviewed = record.reviewed {
-                    Button("Open Reviewed") { NSWorkspace.shared.open(reviewed) }
+                    Button("Open Enhanced") { NSWorkspace.shared.open(reviewed) }
                 }
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(record.allFiles) }
                     .disabled(missing)

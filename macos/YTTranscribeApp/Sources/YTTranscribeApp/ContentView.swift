@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var batchText = ""
     @State private var mode: InputMode = .video
     @State private var showingReviewPrompt = false
+    @State private var reviewSession: ReviewViewModel?
+    @State private var reviewLoadError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -58,8 +60,12 @@ struct ContentView: View {
             if case let .completed(files) = model.state {
                 HStack {
                     Button("Open Original") { NSWorkspace.shared.open(files.original) }
+                    if let review = files.review {
+                        Button("Review Changes") { openReview(review) }
+                            .keyboardShortcut("r", modifiers: .command)
+                    }
                     if let reviewed = files.reviewed {
-                        Button("Open Reviewed") { NSWorkspace.shared.open(reviewed) }
+                        Button("Open Enhanced") { NSWorkspace.shared.open(reviewed) }
                     }
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([files.original] + (files.reviewed.map { [$0] } ?? [])) }
                 }
@@ -67,25 +73,33 @@ struct ContentView: View {
                 if let reviewed = files.reviewed {
                     Text(reviewed.path).font(.caption).textSelection(.enabled)
                 }
+                if let reviewLoadError {
+                    Label(reviewLoadError, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
             }
             Spacer()
         }
         .padding(24)
+        .sheet(item: $reviewSession) { session in
+            ReviewView(model: session)
+        }
         .confirmationDialog(
-            "Would you like to create a reviewed version using your local model?",
+            "Would you like to create an enhanced version using your local model?",
             isPresented: $showingReviewPrompt,
             titleVisibility: .visible
         ) {
-            Button("Create Reviewed Version") {
+            Button("Create Enhanced Version") {
                 model.beginReview()
             }
             .disabled(!model.canReview)
             Button("Keep Original Only", role: .cancel) { model.declineReview() }
         } message: {
-            Text(model.canReview ? "The original transcript is saved. The reviewed transcript will be saved alongside it." : "Configure a local rewrite command in Settings to create a reviewed copy.")
+            Text(model.canReview ? "The original transcript is saved. The enhanced transcript will be saved alongside it, and you can review each change." : "Configure a local rewrite command in Settings to create an enhanced copy.")
         }
         .onChange(of: model.state) { state in
             if case .awaitingReviewChoice = state { showingReviewPrompt = true }
+            // Show the diff as soon as an enhanced copy with a review file is ready.
+            if case let .completed(files) = state, let review = files.review { openReview(review) }
         }
     }
 
@@ -126,15 +140,24 @@ struct ContentView: View {
         switch model.state {
         case .idle: Text("Enter a video URL to create a transcript.").foregroundStyle(.secondary)
         case .transcribing: Text("Transcribing…")
-        case .awaitingReviewChoice: Text("Original transcript saved. Choose whether to create a reviewed copy.")
-        case .rewriting: Text("Reviewing transcript locally…")
-        case .completed(let files): Text(files.reviewed == nil ? "Original transcript ready." : "Original and reviewed transcripts ready.")
+        case .awaitingReviewChoice: Text("Original transcript saved. Choose whether to create an enhanced copy.")
+        case .rewriting: Text("Enhancing transcript locally…")
+        case .completed(let files): Text(files.reviewed == nil ? "Original transcript ready." : "Original and enhanced transcripts ready.")
         case .completedBatch(let summary):
             switch summary.kind {
             case .playlist: Text("\(summary.files.count) transcripts saved from the playlist. Find them in the Library tab.")
             default: Text("\(summary.files.count) of \(summary.requested) videos transcribed. Find them in the Library tab.")
             }
         case .failed(let message): Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        }
+    }
+
+    private func openReview(_ file: URL) {
+        do {
+            reviewSession = try ReviewViewModel(reviewFile: file)
+            reviewLoadError = nil
+        } catch {
+            reviewLoadError = "Could not open the review file: \(error.localizedDescription)"
         }
     }
 

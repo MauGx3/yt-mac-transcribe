@@ -163,7 +163,7 @@ final class TranscriptionViewModel: ObservableObject {
                 record.reviewed = files.reviewed
                 library?.update(record)
             }
-            finish(operationID, with: .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed)))
+            finish(operationID, with: .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed, review: files.review)))
         } catch {
             finish(operationID, with: .failed(error.localizedDescription))
         }
