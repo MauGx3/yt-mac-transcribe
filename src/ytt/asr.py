@@ -37,12 +37,59 @@ def _which(name: str) -> Optional[str]:
     return shutil.which(name)
 
 
+def model_search_dirs() -> List[str]:
+    """Folders searched for ggml model files, most specific first."""
+    dirs = []
+    env = os.environ.get("YTT_MODEL_DIR")
+    if env:
+        dirs.append(env)
+    home = os.path.expanduser("~")
+    dirs += [
+        os.getcwd(),
+        os.path.join(os.getcwd(), "models"),
+        os.path.join(home, ".cache", "whisper"),
+        os.path.join(home, ".cache", "whisper.cpp"),
+        "/opt/homebrew/share/whisper-cpp",
+        "/opt/homebrew/share/whisper-cpp/models",
+        "/usr/local/share/whisper-cpp",
+        "/usr/local/share/whisper-cpp/models",
+    ]
+    return dirs
+
+
+def resolve_model(model: str, search_dirs: Optional[List[str]] = None) -> str:
+    """Turn a model name like ``small.en`` into a ggml model file path.
+
+    whisper-cli's ``-m`` needs a file, not a name. An existing path is
+    returned as-is; otherwise ``<name>`` and ``ggml-<name>.bin`` are looked up
+    in :func:`model_search_dirs`.
+    """
+    expanded = os.path.expanduser(model)
+    if os.path.isfile(expanded):
+        return expanded
+    names = [model, "ggml-%s.bin" % model]
+    dirs = search_dirs if search_dirs is not None else model_search_dirs()
+    for d in dirs:
+        for name in names:
+            path = os.path.join(d, name)
+            if os.path.isfile(path):
+                return path
+    raise ASRUnavailable(
+        "whisper.cpp model %r not found. Download it with:\n"
+        "  whisper-cpp-download-ggml-model %s\n"
+        "then pass its path with --model, or put it in one of:\n  %s"
+        % (model, model, "\n  ".join(dirs))
+    )
+
+
 def detect_backends() -> dict:
     """Report what the ASR tier needs and what is present."""
     return {
         "yt-dlp": _which("yt-dlp"),
         "ffmpeg": _which("ffmpeg"),
-        "whisper.cpp": _which("whisper-cli") or _which("whisper"),
+        # Only whisper.cpp binaries: OpenAI's Python `whisper` CLI takes
+        # different flags (-oj/-of/-pp would fail).
+        "whisper.cpp": _which("whisper-cli") or _which("whisper-cpp"),
         "whisper (openai)": _which("whisper"),
         "mlx_whisper": _which("mlx_whisper"),
     }
@@ -72,6 +119,8 @@ def transcribe_audio(
         )
 
     whisper_bin = backends["whisper.cpp"]
+    # Resolve before downloading audio so a missing model fails fast.
+    model_path = resolve_model(model)
     tmpdir = tempfile.mkdtemp(prefix="ytt-asr-")
     wav = os.path.join(tmpdir, "audio.wav")
     out_prefix = os.path.join(tmpdir, "out")
@@ -100,7 +149,7 @@ def transcribe_audio(
             os.rename(candidates[0], wav)
 
         log.info("  [asr] transcribing with whisper.cpp (%s)…" % model)
-        cmd = [whisper_bin, "-m", model, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
+        cmd = [whisper_bin, "-m", model_path, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
         if lang and lang != "auto":
             cmd += ["-l", lang]
         proc = subprocess.run(cmd, capture_output=True, text=True)

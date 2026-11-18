@@ -120,7 +120,36 @@ struct TranscriptionRunner: TranscriptionRunning {
         return try Self.files(from: paths, mode: mode)
     }
 
-    private struct ProcessResult {
+    /// Drains a pipe on a background queue while the child runs.
+    ///
+    /// Reading only after exit deadlocks once the child fills the pipe
+    /// buffer (~64 KB): it blocks on write and never terminates.
+    private final class PipeDrain: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        private let finished = DispatchSemaphore(value: 0)
+
+        init(_ pipe: Pipe) {
+            let handle = pipe.fileHandleForReading
+            DispatchQueue.global(qos: .utility).async { [self] in
+                let chunk = handle.readDataToEndOfFile()
+                lock.lock()
+                data = chunk
+                lock.unlock()
+                finished.signal()
+            }
+        }
+
+        /// Blocks until the pipe reaches EOF, then returns everything read.
+        func collected() -> Data {
+            finished.wait()
+            lock.lock()
+            defer { lock.unlock() }
+            return data
+        }
+    }
+
+    struct ProcessResult {
         let status: Int32
         let stdout: String
         let stderr: String
@@ -137,13 +166,22 @@ struct TranscriptionRunner: TranscriptionRunning {
         return env
     }
 
-    private static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
+    /// Lets the drain threads hit EOF when the process never launched.
+    private static func closeWriters(_ pipes: Pipe...) {
+        for pipe in pipes { try? pipe.fileHandleForWriting.close() }
+    }
+
+    static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
         let cancellationState = ProcessCancellationState()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
                 let process = Process()
                 let outPipe = Pipe()
                 let errPipe = Pipe()
+                // Drain from before launch so the termination handler can
+                // never run ahead of the readers.
+                let outDrain = PipeDrain(outPipe)
+                let errDrain = PipeDrain(errPipe)
                 process.executableURL = executable
                 process.arguments = arguments
                 process.environment = Self.processEnvironment()
@@ -154,8 +192,8 @@ struct TranscriptionRunner: TranscriptionRunning {
                         continuation.resume(throwing: CancellationError())
                         return
                     }
-                    let out = outPipe.fileHandleForReading.readDataToEndOfFile()
-                    let err = errPipe.fileHandleForReading.readDataToEndOfFile()
+                    let out = outDrain.collected()
+                    let err = errDrain.collected()
                     continuation.resume(returning: ProcessResult(
                         status: terminated.terminationStatus,
                         stdout: String(decoding: out, as: UTF8.self),
@@ -163,6 +201,7 @@ struct TranscriptionRunner: TranscriptionRunning {
                     ))
                 }
                 guard cancellationState.register(process: process), !Task.isCancelled else {
+                    Self.closeWriters(outPipe, errPipe)
                     continuation.resume(throwing: CancellationError())
                     return
                 }
@@ -172,6 +211,7 @@ struct TranscriptionRunner: TranscriptionRunning {
                         process.terminate()
                     }
                 } catch {
+                    Self.closeWriters(outPipe, errPipe)
                     continuation.resume(throwing: error)
                 }
             }

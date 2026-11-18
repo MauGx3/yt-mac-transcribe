@@ -66,4 +66,16 @@ final class TranscriptionRunnerTests: XCTestCase {
         XCTAssertEqual(entries.filter { $0 == "/usr/bin" }.count, 1)
         XCTAssertEqual(env["HOME"], "/Users/test")
     }
+
+    func testExecuteDoesNotDeadlockOnOutputLargerThanPipeBuffer() async throws {
+        // 256 KB on each stream: far past the ~64 KB pipe buffer.
+        let script = "head -c 262144 /dev/zero | tr '\\0' a; head -c 262144 /dev/zero | tr '\\0' b >&2"
+        let result = try await TranscriptionRunner.execute(
+            executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", script]
+        )
+        XCTAssertEqual(result.status, 0)
+        XCTAssertEqual(result.stdout.count, 262_144)
+        XCTAssertEqual(result.stderr.count, 262_144)
+    }
 }
