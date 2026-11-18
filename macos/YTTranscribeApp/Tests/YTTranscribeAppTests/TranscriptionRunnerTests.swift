@@ -105,6 +105,15 @@ final class TranscriptionRunnerTests: XCTestCase {
         XCTAssertEqual(env["HOME"], "/Users/test")
     }
 
+    func testProcessEnvironmentIncludesPipxBinDirectory() {
+        // `pipx install mlx-whisper` (as the README suggests) puts tools in ~/.local/bin,
+        // which a Finder-launched app does not have on PATH.
+        let env = TranscriptionRunner.processEnvironment(base: ["PATH": "/usr/bin", "HOME": "/Users/test"])
+        let entries = env["PATH"]?.split(separator: ":").map(String.init) ?? []
+        XCTAssertTrue(entries.contains("/Users/test/.local/bin"))
+        XCTAssertLessThan(entries.firstIndex(of: "/Users/test/.local/bin")!, entries.firstIndex(of: "/usr/bin")!)
+    }
+
     func testExecuteDoesNotDeadlockOnOutputLargerThanPipeBuffer() async throws {
         // 256 KB on each stream: far past the ~64 KB pipe buffer.
         let script = "head -c 262144 /dev/zero | tr '\\0' a; head -c 262144 /dev/zero | tr '\\0' b >&2"
