@@ -83,6 +83,40 @@ The response must contain exactly one item for every input segment, in the same 
 
 A runner should preserve meaning and avoid adding information that is not supported by the transcript. It should correct wording and punctuation while keeping each segment concise enough for its existing subtitle timing.
 
+## Review file and uncertainty (protocol v2)
+
+Every successful rewrite also writes `My Video.review.json` next to the original. It holds, per segment, the original text, the enhanced text, the word-level changes between them (`hunks`), and any spans the runner reported as uncertain. A review screen or report reads this file; nothing else needs the rewritten files to show a diff. Its path is printed after the original and rewritten paths, followed by the HTML report described below.
+
+Requests now carry `"protocol": 2`. A runner may add an optional `uncertain` list to any response segment:
+
+```json
+{"text": "They're going home",
+ "uncertain": [{"start": 0, "end": 7, "score": 0.41, "reason": "low token probability"}]}
+```
+
+`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no "AI unsure" markers, and `stats.has_ai_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. The bundled `tools/rewrite_with_local_model.py` fills `uncertain` from the model's token probabilities: a word the model changed is reported when its lowest token probability is under `--unsure-below` (default 0.5, `0` turns it off). Unchanged words are never reported. These are hints about where to look, not a judgement that the text is wrong.
+
+### Unclear audio
+
+When the transcript came from local speech recognition, `ytt` also keeps how sure the recogniser was of each word: whisper.cpp runs with `-ojf` (per-token probability) and mlx-whisper with `--word-timestamps True` (per-word probability). These scores also appear as `conf` on each word in `-f json` output. A word scored under 0.5 is added to its segment's `flags` with `"kind": "unclear_audio"`, the word itself, its `score`, and `changed`:
+
+- `changed: true`: the rewrite edited that word, and the change carries the `unclear_audio` flag. The AI may have guessed at a word nobody could hear well.
+- `changed: false`: the rewrite left the word alone. It may still be misheard, so the review screen lists it under the segment.
+
+A change can carry both `ai_unsure` and `unclear_audio`. `stats.unclear_words` counts the unclear words, `stats.has_audio_confidence` says whether scores were available, and `stats.has_confidence` is `true` when either kind was. YouTube captions carry no scores, so transcripts made from captions never show "Unclear audio".
+
+### HTML report
+
+Next to the review file, `ytt` also writes `My Video.review.html`: one self-contained page (no network access, nothing else to download) that shows every change, the **AI unsure** and **Unclear audio** labels, and the unclear words the rewrite left unchanged. Timestamps link to that moment of the video. Open it in any browser.
+
+In the page, each change has a **keep** checkbox. Untick the ones you disagree with, then press **Download Reviewed** to save `My Video.reviewed.txt` with your choices, the same file the macOS app saves. **Only unsure** hides the segments with nothing to check, and **Accept all without unsure marks** ticks every change that has no label. Your choices are not stored in the page, so download before closing it.
+
+To rebuild the page from an existing review file, for example after updating `ytt`:
+
+```bash
+ytt --review-report "My Video.review.json"
+```
+
 ## Building a local runner
 
 A runner only needs standard input/output handling. The model call is intentionally outside `ytt` so the same CLI feature can work with different local engines:

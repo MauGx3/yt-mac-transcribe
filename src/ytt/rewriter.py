@@ -7,6 +7,7 @@ import subprocess
 from typing import List, Sequence
 
 from .model import Transcript
+from .review import clean_uncertain
 from .segments import Segment
 
 
@@ -26,6 +27,7 @@ def _request_payload(transcript: Transcript) -> dict:
             }
         )
     return {
+        "protocol": 2,
         "title": transcript.title,
         "url": transcript.url,
         "language": transcript.lang,
@@ -46,7 +48,9 @@ def rewrite_transcript(
     """Rewrite transcript text with a local model command.
 
     The command receives a JSON request on stdin and must write JSON to stdout:
-    {"segments": [{"text": "..."}, ...]}. Segment timings remain local and
+    {"segments": [{"text": "..."}, ...]}. A segment may also carry an optional
+    ``uncertain`` list of character spans the model was unsure about (protocol
+    v2, see docs/local-rewriting.md). Segment timings remain local and
     are copied from the original transcript so subtitle alignment is unchanged.
     """
     if not command:
@@ -73,20 +77,25 @@ def rewrite_transcript(
         )
 
     segments: List[Segment] = []
+    uncertain: List[list] = []
     for original, item in zip(transcript.segments, rewritten):
         if not isinstance(item, dict) or not isinstance(item.get("text"), str):
             raise ValueError("each rewritten segment must contain string text")
+        text = item["text"].strip()
         segments.append(
             Segment(
                 original.start_ms,
                 original.end_ms,
-                item["text"].strip(),
+                text,
                 list(original.words),
             )
         )
+        # Optional protocol v2 field; old runners simply omit it.
+        uncertain.append(clean_uncertain(item.get("uncertain"), text))
 
     extra = dict(transcript.extra)
     extra["rewritten_from"] = transcript.engine
+    extra["uncertain"] = uncertain
     return Transcript(
         video_id=transcript.video_id,
         title=transcript.title,

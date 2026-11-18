@@ -20,6 +20,8 @@ class Word:
     start_ms: int
     end_ms: int
     text: str
+    # Speech recognition confidence, 0..1, when the engine reports one.
+    conf: Optional[float] = None
 
 
 @dataclass
