@@ -1,29 +1,60 @@
 import AppKit
 import SwiftUI
 
+enum InputMode: String, CaseIterable, Identifiable {
+    case video = "Video"
+    case playlist = "Playlist"
+    case batch = "Batch"
+
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @ObservedObject var model: TranscriptionViewModel
     @State private var url = ""
+    @State private var batchText = ""
+    @State private var mode: InputMode = .video
     @State private var showingReviewPrompt = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("YouTube Transcripts")
                 .font(.largeTitle.weight(.semibold))
-            TextField("Paste one YouTube URL", text: $url)
-                .textFieldStyle(.roundedBorder)
-                .disabled(isBusy)
-                .onSubmit { submit() }
+            Picker("Input", selection: $mode) {
+                ForEach(InputMode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(isBusy)
+            if mode == .batch {
+                TextEditor(text: $batchText)
+                    .font(.body.monospaced())
+                    .frame(minHeight: 90, maxHeight: 140)
+                    .border(Color.secondary.opacity(0.4))
+                    .disabled(isBusy)
+                Text("One URL per line. Text after # is ignored.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                TextField(mode == .playlist ? "Paste a YouTube playlist URL" : "Paste one YouTube URL", text: $url)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(isBusy)
+                    .onSubmit { submit() }
+            }
+            formatPicker
             HStack {
                 Button("Transcribe") { submit() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(isBusy || url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isBusy || !hasInput)
                 if isBusy {
                     ProgressView()
                     Button("Cancel") { model.cancel() }
                 }
             }
             statusView
+            if case let .completedBatch(summary) = model.state {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting(summary.files.flatMap { [$0.original] + $0.extras })
+                }
+            }
             if case let .completed(files) = model.state {
                 HStack {
                     Button("Open Original") { NSWorkspace.shared.open(files.original) }
@@ -58,6 +89,31 @@ struct ContentView: View {
         }
     }
 
+    private var formatPicker: some View {
+        HStack(spacing: 14) {
+            Text("Formats").foregroundStyle(.secondary)
+            ForEach(OutputFormat.allCases) { format in
+                Toggle(format.rawValue, isOn: Binding(
+                    get: { model.formats.contains(format) },
+                    set: { isOn in
+                        let updated = isOn ? model.formats + [format] : model.formats.filter { $0 != format }
+                        // Keep at least one format selected.
+                        if !updated.isEmpty { model.setFormats(updated) }
+                    }
+                ))
+                .toggleStyle(.checkbox)
+            }
+        }
+        .disabled(isBusy)
+    }
+
+    private var hasInput: Bool {
+        switch mode {
+        case .batch: return !URLInput.parse(batchText).isEmpty
+        default: return !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     private var isBusy: Bool {
         switch model.state {
         case .transcribing, .rewriting: return true
@@ -73,14 +129,25 @@ struct ContentView: View {
         case .awaitingReviewChoice: Text("Original transcript saved. Choose whether to create a reviewed copy.")
         case .rewriting: Text("Reviewing transcript locally…")
         case .completed(let files): Text(files.reviewed == nil ? "Original transcript ready." : "Original and reviewed transcripts ready.")
+        case .completedBatch(let summary):
+            switch summary.kind {
+            case .playlist: Text("\(summary.files.count) transcripts saved from the playlist. Find them in the Library tab.")
+            default: Text("\(summary.files.count) of \(summary.requested) videos transcribed. Find them in the Library tab.")
+            }
         case .failed(let message): Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
         }
     }
 
     private func submit() {
-        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        model.begin(url: trimmed)
+        guard !isBusy, hasInput else { return }
+        switch mode {
+        case .video:
+            model.begin(url: url.trimmingCharacters(in: .whitespacesAndNewlines))
+        case .playlist:
+            model.beginBatch(urls: [url.trimmingCharacters(in: .whitespacesAndNewlines)], playlist: true)
+        case .batch:
+            model.beginBatch(urls: URLInput.parse(batchText), playlist: false)
+        }
     }
 }
 

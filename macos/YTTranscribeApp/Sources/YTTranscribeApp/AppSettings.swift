@@ -4,6 +4,10 @@ struct AppSettings: Equatable {
     var yttExecutable: URL
     var rewriteCommand: [String]
     var outputDirectory: URL
+    var formats: [OutputFormat] = [.txt]
+
+    /// Selected formats, deduplicated; never empty.
+    var effectiveFormats: [OutputFormat] { OutputFormat.normalized(formats) }
 
     static let defaultOutputDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/yt-transcribe", isDirectory: true)
@@ -23,7 +27,8 @@ struct AppSettings: Equatable {
         return AppSettings(
             yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
             rewriteCommand: Self.parseCommand(rewrite) ?? [],
-            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true)
+            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true),
+            formats: OutputFormat.parse(values.string(forKey: "formats") ?? "txt")
         )
     }
 
@@ -74,5 +79,6 @@ struct AppSettings: Equatable {
         defaults.set(yttExecutable.path, forKey: "yttExecutable")
         defaults.set(rewriteCommand.joined(separator: " "), forKey: "rewriteCommand")
         defaults.set(outputDirectory.path, forKey: "outputDirectory")
+        defaults.set(effectiveFormats.map(\.rawValue).joined(separator: ","), forKey: "formats")
     }
 }
