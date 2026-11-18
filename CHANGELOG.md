@@ -5,6 +5,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 <!-- [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review. -->
 
+## [Unreleased]
+
+### Added
+
+- macOS app: **Library** tab with transcript history, search by title, URL or
+  transcript text, and open / show in Finder / remove actions.
+- macOS app: **Playlist** and **Batch** input modes backed by `ytt --playlist`
+  and multiple URLs.
+- macOS app: output format choice (txt, srt, vtt, json, md; several at once).
+
+### Known limits
+
+- Reviewed copies (local rewrite) are only offered for single videos.
+
 ## [0.1.0] - 2026-11-03
 
 First packaged release: the `ytt` command-line transcriber and a native macOS app.
