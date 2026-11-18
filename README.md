@@ -198,7 +198,7 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution checklist and [`d
 
 ## License
 
-MIT
+MIT. See [`LICENSE`](LICENSE).
 
 ## Native macOS app
 
