@@ -10,12 +10,13 @@ Two reasons this matters:
 
 Deliberately dependency-free and easy to disable (`--no-cache`).
 """
+
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
-import shutil
 import tempfile
 import time
 from typing import Any, Optional
@@ -27,9 +28,7 @@ META_TTL = 3600  # one hour
 
 
 def cache_dir() -> str:
-    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(
-        os.path.expanduser("~"), ".cache"
-    )
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
     path = os.path.join(base, "yt-transcribe")
     try:
         os.makedirs(path, exist_ok=True)
@@ -66,7 +65,7 @@ class Cache:
         try:
             if time.time() - os.path.getmtime(path) > limit:
                 return None
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = fh.read()
             self.hits += 1
             return data
@@ -109,10 +108,8 @@ class Cache:
             return 0
         total = 0
         for name in os.listdir(self.root):
-            try:
+            with contextlib.suppress(OSError):
                 total += os.path.getsize(os.path.join(self.root, name))
-            except OSError:
-                pass
         return total
 
 
@@ -123,7 +120,5 @@ def _atomic_write(path: str, value: str) -> None:
             fh.write(value)
         os.replace(tmp, path)
     except OSError:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp)
-        except OSError:
-            pass

@@ -2,6 +2,7 @@
 # pending human review). Covers CLI parsing, failure propagation, original
 # output preservation, and rewrite provenance serialization.
 """CLI-level tests for the local rewrite integration."""
+
 import contextlib
 import io
 import json
@@ -43,10 +44,17 @@ class TestParser(unittest.TestCase):
         self.assertIn(__version__, out.getvalue())
 
     def test_rewrite_command_keeps_option_like_runner_arguments(self):
-        args = cli.build_parser().parse_args([
-            "https://youtu.be/vid", "--rewrite-timeout", "9",
-            "--rewrite-command", "./rw", "--model", "qwen2.5:7b",
-        ])
+        args = cli.build_parser().parse_args(
+            [
+                "https://youtu.be/vid",
+                "--rewrite-timeout",
+                "9",
+                "--rewrite-command",
+                "./rw",
+                "--model",
+                "qwen2.5:7b",
+            ]
+        )
         self.assertEqual(args.urls, ["https://youtu.be/vid"])
         self.assertEqual(args.rewrite_command, ["./rw", "--model", "qwen2.5:7b"])
         self.assertEqual(args.rewrite_timeout, 9)
@@ -61,32 +69,41 @@ class TestParser(unittest.TestCase):
 class TestWriteOutputs(unittest.TestCase):
     def args(self, out, command):
         return cli.build_parser().parse_args(
-            ["u", "-o", out, "-f", "txt", "json", "--rewrite-command"] + command)
+            ["u", "-o", out, "-f", "txt", "json", "--rewrite-command", *command]
+        )
 
     def test_original_written_even_when_rewrite_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = self.args(tmp, [sys.executable, "-c", "import sys; sys.exit(3)"])
             with self.assertRaises(cli.RewriteFailed) as ctx:
-                cli.write_outputs(make_transcript(), args, "Video", "vid", False,
-                                  Log(quiet=True))
+                cli.write_outputs(make_transcript(), args, "Video", "vid", False, Log(quiet=True))
             written = ctx.exception.written
-            self.assertEqual([os.path.basename(p) for p in written],
-                             ["Video.txt", "Video.json"])
+            self.assertEqual([os.path.basename(p) for p in written], ["Video.txt", "Video.json"])
             for path in written:
                 self.assertTrue(os.path.exists(path))
             self.assertFalse(os.path.exists(os.path.join(tmp, "Video.rewritten.txt")))
 
     def test_companions_written_after_originals_on_success(self):
-        script = ("import json,sys; p=json.load(sys.stdin); "
-                  "print(json.dumps({'segments':[{'text':s['text'].upper()} "
-                  "for s in p['segments']]}))")
+        script = (
+            "import json,sys; p=json.load(sys.stdin); "
+            "print(json.dumps({'segments':[{'text':s['text'].upper()} "
+            "for s in p['segments']]}))"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             args = self.args(tmp, [sys.executable, "-c", script])
-            written = cli.write_outputs(make_transcript(), args, "Video", "vid",
-                                        False, Log(quiet=True))
-            self.assertEqual([os.path.basename(p) for p in written], [
-                "Video.txt", "Video.json", "Video.rewritten.txt", "Video.rewritten.json",
-                "Video.review.json"])
+            written = cli.write_outputs(
+                make_transcript(), args, "Video", "vid", False, Log(quiet=True)
+            )
+            self.assertEqual(
+                [os.path.basename(p) for p in written],
+                [
+                    "Video.txt",
+                    "Video.json",
+                    "Video.rewritten.txt",
+                    "Video.rewritten.json",
+                    "Video.review.json",
+                ],
+            )
             with open(os.path.join(tmp, "Video.rewritten.txt"), encoding="utf-8") as fh:
                 self.assertIn("HELLO THERE", fh.read())
             with open(os.path.join(tmp, "Video.review.json"), encoding="utf-8") as fh:
@@ -103,21 +120,28 @@ class TestMainReportsRewriteFailure(unittest.TestCase):
             return make_transcript(), ["/tmp/good.txt"]
 
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(cli, "YouTube"), \
-                mock.patch.object(cli, "process_one", side_effect=fake_process_one), \
-                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = cli.main(["https://youtu.be/good", "https://youtu.be/bad",
-                             "--delay", "0", "--rewrite-command", "x"])
+        with mock.patch.object(cli, "YouTube"), mock.patch.object(
+            cli, "process_one", side_effect=fake_process_one
+        ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(
+                [
+                    "https://youtu.be/good",
+                    "https://youtu.be/bad",
+                    "--delay",
+                    "0",
+                    "--rewrite-command",
+                    "x",
+                ]
+            )
         self.assertEqual(code, cli.EXIT_PARTIAL)  # one of two videos failed
         self.assertEqual(out.getvalue().split(), ["/tmp/good.txt", "/tmp/bad.txt"])
         self.assertIn("failed: https://youtu.be/bad", err.getvalue())
 
     def test_single_video_rewrite_failure_exits_nonzero(self):
         out = io.StringIO()
-        with mock.patch.object(cli, "YouTube"), \
-                mock.patch.object(cli, "process_one",
-                                  side_effect=cli.RewriteFailed("boom", ["/tmp/a.txt"])), \
-                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+        with mock.patch.object(cli, "YouTube"), mock.patch.object(
+            cli, "process_one", side_effect=cli.RewriteFailed("boom", ["/tmp/a.txt"])
+        ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             code = cli.main(["https://youtu.be/a", "--rewrite-command", "x"])
         self.assertEqual(code, 1)
         self.assertEqual(out.getvalue().split(), ["/tmp/a.txt"])

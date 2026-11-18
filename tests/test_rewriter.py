@@ -1,4 +1,5 @@
 """Tests for local context-aware transcript rewriting."""
+
 import os
 import sys
 import unittest
@@ -36,15 +37,13 @@ class TestLocalRewriter(unittest.TestCase):
             "{'text':'They are going home'},"
             "{'text':'because it is late'}]}))"
         )
-        out = rewrite_transcript(
-            self.make_transcript(), [sys.executable, "-c", script]
+        out = rewrite_transcript(self.make_transcript(), [sys.executable, "-c", script])
+        self.assertEqual(
+            [s.text for s in out.segments], ["They are going home", "because it is late"]
         )
-        self.assertEqual([s.text for s in out.segments], [
-            "They are going home", "because it is late"
-        ])
-        self.assertEqual([(s.start_ms, s.end_ms) for s in out.segments], [
-            (1000, 2000), (2100, 3200)
-        ])
+        self.assertEqual(
+            [(s.start_ms, s.end_ms) for s in out.segments], [(1000, 2000), (2100, 3200)]
+        )
         self.assertEqual(out.engine, "rewrite")
         self.assertEqual(out.extra["rewritten_from"], "captions")
 
@@ -57,6 +56,7 @@ class TestLocalRewriter(unittest.TestCase):
 class TestRewritePath(unittest.TestCase):
     def test_companion_path(self):
         from ytt.cli import rewritten_output_path
+
         self.assertEqual(rewritten_output_path("out/video.srt"), "out/video.rewritten.srt")
         self.assertEqual(rewritten_output_path("video"), "video.rewritten")
 

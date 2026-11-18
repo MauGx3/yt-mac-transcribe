@@ -1,9 +1,9 @@
 """Tests for tools/rewrite_with_local_model.py using a fake model (no MLX)."""
+
 import importlib.util
 import io
 import json
 import os
-import sys
 import unittest
 from unittest import mock
 
@@ -28,7 +28,9 @@ class FakeModel:
 
 def make_request(texts):
     return {
-        "title": "T", "language": "en", "instructions": "fix",
+        "title": "T",
+        "language": "en",
+        "instructions": "fix",
         "segments": [{"index": i, "text": t} for i, t in enumerate(texts)],
     }
 
@@ -69,7 +71,9 @@ class TestRewrite(unittest.TestCase):
         with self.assertRaises(runner.RewriteError):
             runner.rewrite(make_request(["a"]), FakeModel(["x", "x"]), retries=1)
         out = runner.rewrite(
-            make_request(["a"]), FakeModel(["x", "x"]), retries=1,
+            make_request(["a"]),
+            FakeModel(["x", "x"]),
+            retries=1,
             keep_original_on_failure=True,
         )
         self.assertEqual(out["segments"], [{"text": "a"}])
@@ -91,8 +95,10 @@ class TestUncertainSpans(unittest.TestCase):
         out = runner.rewrite(make_request(["their going home"]), model)
         item = out["segments"][0]
         self.assertEqual(item["text"], "They are going home")
-        self.assertEqual(item["uncertain"], [{
-            "start": 0, "end": 4, "score": 0.2, "reason": "low token probability"}])
+        self.assertEqual(
+            item["uncertain"],
+            [{"start": 0, "end": 4, "score": 0.2, "reason": "low token probability"}],
+        )
 
     def test_unchanged_low_probability_word_is_not_reported(self):
         model = FakeModel([scored('["their going home"]', low_word="going")])
@@ -127,8 +133,9 @@ class TestMain(unittest.TestCase):
     def run_main(self, request, replies, argv=()):
         stdout = io.StringIO()
         model = FakeModel(replies)
-        with mock.patch("sys.stdin", io.StringIO(json.dumps(request))), \
-                mock.patch("sys.stdout", stdout):
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(request))), mock.patch(
+            "sys.stdout", stdout
+        ):
             code = runner.main(list(argv), model_factory=lambda name, max_tokens=None: model)
         return code, stdout.getvalue()
 
@@ -139,10 +146,13 @@ class TestMain(unittest.TestCase):
 
     def test_empty_segments_skip_model_load(self):
         stdout = io.StringIO()
+
         def boom(*a, **k):
             raise AssertionError("model should not load")
-        with mock.patch("sys.stdin", io.StringIO('{"segments": []}')), \
-                mock.patch("sys.stdout", stdout):
+
+        with mock.patch("sys.stdin", io.StringIO('{"segments": []}')), mock.patch(
+            "sys.stdout", stdout
+        ):
             self.assertEqual(runner.main([], model_factory=boom), 0)
         self.assertEqual(json.loads(stdout.getvalue()), {"segments": []})
 

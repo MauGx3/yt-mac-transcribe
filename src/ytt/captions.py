@@ -3,6 +3,7 @@
 json3 is preferred: it is the smallest payload YouTube offers that still keeps
 exact timings, and it carries per-word offsets for auto captions.
 """
+
 from __future__ import annotations
 
 import json
@@ -32,7 +33,7 @@ def parse_json3(payload: Any) -> List[Segment]:
         payload = json.loads(payload)
 
     segments: List[Segment] = []
-    for ev in (payload.get("events") or []):
+    for ev in payload.get("events") or []:
         if ev.get("aAppend"):
             continue  # rolling-window newline marker, not speech
         parts = ev.get("segs") or []
@@ -101,7 +102,7 @@ def parse_vtt(text: str) -> List[Segment]:
             continue
         start = _ts_to_ms(m.group(1), m.group(2), m.group(3), m.group(4))
         end = _ts_to_ms(m.group(5), m.group(6), m.group(7), m.group(8))
-        body = " ".join(lines[idx + 1:])
+        body = " ".join(lines[idx + 1 :])
         body = _VTT_TIMESTAMP_RE.sub("", body)
         body = _TAG_RE.sub("", body)
         body = normalize_text(body)
@@ -123,7 +124,7 @@ def parse_srt(text: str) -> List[Segment]:
             continue
         start = _ts_to_ms(m.group(1), m.group(2), m.group(3), m.group(4))
         end = _ts_to_ms(m.group(5), m.group(6), m.group(7), m.group(8))
-        body = block[m.end():].strip()
+        body = block[m.end() :].strip()
         body = _TAG_RE.sub("", body)
         body = normalize_text(body)
         if body:
@@ -182,15 +183,19 @@ def parse_whisper_json(payload: Dict[str, Any]) -> List[Segment]:
         if not text:
             continue
         segments.append(
-            Segment(int(offsets.get("from") or 0), int(offsets.get("to") or 0), text,
-                    _whisper_words(item.get("tokens")))
+            Segment(
+                int(offsets.get("from") or 0),
+                int(offsets.get("to") or 0),
+                text,
+                _whisper_words(item.get("tokens")),
+            )
         )
     return clean_segments(segments)
 
 
 def _seconds_ms(value: Any) -> int:
     try:
-        return int(round(float(value or 0) * 1000))
+        return round(float(value or 0) * 1000)
     except (TypeError, ValueError):
         return 0
 
@@ -210,10 +215,17 @@ def parse_mlx_json(payload: Dict[str, Any]) -> List[Segment]:
         for w in item.get("words") or []:
             if not isinstance(w, dict) or not str(w.get("word") or "").strip():
                 continue
-            words.append(Word(_seconds_ms(w.get("start")), _seconds_ms(w.get("end")),
-                              str(w["word"]).strip(), _prob(w.get("probability"))))
-        segments.append(Segment(_seconds_ms(item.get("start")), _seconds_ms(item.get("end")),
-                                text, words))
+            words.append(
+                Word(
+                    _seconds_ms(w.get("start")),
+                    _seconds_ms(w.get("end")),
+                    str(w["word"]).strip(),
+                    _prob(w.get("probability")),
+                )
+            )
+        segments.append(
+            Segment(_seconds_ms(item.get("start")), _seconds_ms(item.get("end")), text, words)
+        )
     return clean_segments(segments)
 
 

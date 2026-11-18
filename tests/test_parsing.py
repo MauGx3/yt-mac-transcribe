@@ -1,4 +1,5 @@
 """Unit tests for parsing, cleanup, and formatting. No network required."""
+
 import json
 import os
 import sys
@@ -6,10 +7,10 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.captions import detect_format, parse_json3, parse_srt, parse_vtt  # noqa: E402
-from ytt.formatter import render  # noqa: E402
-from ytt.model import Transcript  # noqa: E402
-from ytt.segments import (  # noqa: E402
+from ytt.captions import detect_format, parse_json3, parse_srt, parse_vtt
+from ytt.formatter import render
+from ytt.model import Transcript
+from ytt.segments import (
     Segment,
     clean_segments,
     merge_paragraphs,
@@ -17,16 +18,25 @@ from ytt.segments import (  # noqa: E402
     strip_sound_tags,
     word_count,
 )
-from ytt.util import sanitize_filename  # noqa: E402
-
+from ytt.util import sanitize_filename
 
 STATIC_JSON3 = {
     "events": [
         {"tStartMs": 4220, "dDurationMs": 1180, "segs": [{"utf8": "This is a 3."}]},
-        {"tStartMs": 6060, "dDurationMs": 4653,
-         "segs": [{"utf8": "It's sloppily written and rendered at an extremely low resolution of 28x28 pixels,"}]},
-        {"tStartMs": 10713, "dDurationMs": 3007,
-         "segs": [{"utf8": "but your brain has no trouble recognizing it as a 3."}]},
+        {
+            "tStartMs": 6060,
+            "dDurationMs": 4653,
+            "segs": [
+                {
+                    "utf8": "It's sloppily written and rendered at an extremely low resolution of 28x28 pixels,"
+                }
+            ],
+        },
+        {
+            "tStartMs": 10713,
+            "dDurationMs": 3007,
+            "segs": [{"utf8": "but your brain has no trouble recognizing it as a 3."}],
+        },
     ]
 }
 
@@ -34,18 +44,31 @@ STATIC_JSON3 = {
 ROLLING_JSON3 = {
     "events": [
         {"tStartMs": 0, "dDurationMs": 2800, "wWinId": 1, "segs": [{"utf8": "[Applause]"}]},
-        {"tStartMs": 230, "dDurationMs": 2570, "wWinId": 1, "aAppend": 1,
-         "segs": [{"utf8": "\n"}]},
-        {"tStartMs": 240, "dDurationMs": 4400, "wWinId": 1, "segs": [
-            {"utf8": "Hello", "acAsrConf": 0},
-            {"utf8": " everyone.", "tOffsetMs": 240, "acAsrConf": 0},
-            {"utf8": " Good", "tOffsetMs": 800, "acAsrConf": 0},
-            {"utf8": " morning.", "tOffsetMs": 1200, "acAsrConf": 0},
-        ]},
-        {"tStartMs": 2790, "dDurationMs": 1850, "wWinId": 1, "aAppend": 1,
-         "segs": [{"utf8": "\n"}]},
-        {"tStartMs": 2800, "dDurationMs": 4240, "wWinId": 1,
-         "segs": [{"utf8": "that today is the start of Gemini"}]},
+        {"tStartMs": 230, "dDurationMs": 2570, "wWinId": 1, "aAppend": 1, "segs": [{"utf8": "\n"}]},
+        {
+            "tStartMs": 240,
+            "dDurationMs": 4400,
+            "wWinId": 1,
+            "segs": [
+                {"utf8": "Hello", "acAsrConf": 0},
+                {"utf8": " everyone.", "tOffsetMs": 240, "acAsrConf": 0},
+                {"utf8": " Good", "tOffsetMs": 800, "acAsrConf": 0},
+                {"utf8": " morning.", "tOffsetMs": 1200, "acAsrConf": 0},
+            ],
+        },
+        {
+            "tStartMs": 2790,
+            "dDurationMs": 1850,
+            "wWinId": 1,
+            "aAppend": 1,
+            "segs": [{"utf8": "\n"}],
+        },
+        {
+            "tStartMs": 2800,
+            "dDurationMs": 4240,
+            "wWinId": 1,
+            "segs": [{"utf8": "that today is the start of Gemini"}],
+        },
     ]
 }
 
@@ -82,9 +105,16 @@ and rendered.
 
 def make_transcript(segments):
     return Transcript(
-        video_id="test", title="Test Video", url="https://youtu.be/test",
-        segments=segments, duration_ms=60000, channel="Chan", lang="en",
-        track_name="English", kind="manual", engine="captions",
+        video_id="test",
+        title="Test Video",
+        url="https://youtu.be/test",
+        segments=segments,
+        duration_ms=60000,
+        channel="Chan",
+        lang="en",
+        track_name="English",
+        kind="manual",
+        engine="captions",
     )
 
 
@@ -117,10 +147,12 @@ class TestJson3(unittest.TestCase):
         self.assertEqual(texts, ["Hello there.", "General Kenobi."])
 
     def test_grown_window_keeps_longer_line(self):
-        payload = {"events": [
-            {"tStartMs": 0, "dDurationMs": 1000, "segs": [{"utf8": "Hello"}]},
-            {"tStartMs": 100, "dDurationMs": 2000, "segs": [{"utf8": "Hello there friend"}]},
-        ]}
+        payload = {
+            "events": [
+                {"tStartMs": 0, "dDurationMs": 1000, "segs": [{"utf8": "Hello"}]},
+                {"tStartMs": 100, "dDurationMs": 2000, "segs": [{"utf8": "Hello there friend"}]},
+            ]
+        }
         segs = parse_json3(payload)
         self.assertEqual([s.text for s in segs], ["Hello there friend"])
 
@@ -166,17 +198,22 @@ class TestSegments(unittest.TestCase):
         self.assertEqual(segs[0].text, "a b c")
 
     def test_empty_dropped(self):
-        segs = clean_segments([
-            Segment(0, 100, "ok"),
-            Segment(200, 300, "   "),
-            Segment(400, 500, ""),
-            Segment(600, 700, "\u200b"),
-        ])
+        segs = clean_segments(
+            [
+                Segment(0, 100, "ok"),
+                Segment(200, 300, "   "),
+                Segment(400, 500, ""),
+                Segment(600, 700, "\u200b"),
+            ]
+        )
         self.assertEqual([s.text for s in segs], ["ok"])
 
     def test_strip_sound_tags(self):
-        segs = [Segment(0, 1000, "[Music]"), Segment(1000, 2000, "[Applause]"),
-                Segment(2000, 3000, "Real words here.")]
+        segs = [
+            Segment(0, 1000, "[Music]"),
+            Segment(1000, 2000, "[Applause]"),
+            Segment(2000, 3000, "Real words here."),
+        ]
         out = strip_sound_tags(segs)
         self.assertEqual([s.text for s in out], ["Real words here."])
 
@@ -188,11 +225,13 @@ class TestSegments(unittest.TestCase):
         self.assertEqual(word_count([Segment(0, 1, "one two three")]), 3)
 
     def test_merge_paragraphs_respects_gap(self):
-        segs = clean_segments([
-            Segment(0, 1000, "First sentence."),
-            Segment(1000, 2000, "Second sentence."),
-            Segment(10000, 11000, "After a long pause."),
-        ])
+        segs = clean_segments(
+            [
+                Segment(0, 1000, "First sentence."),
+                Segment(1000, 2000, "Second sentence."),
+                Segment(10000, 11000, "After a long pause."),
+            ]
+        )
         paras = merge_paragraphs(segs, max_gap_ms=2200)
         self.assertEqual(len(paras), 2)
         self.assertIn("Second sentence.", paras[0][1])
@@ -215,10 +254,12 @@ class TestSegments(unittest.TestCase):
 
 class TestQuality(unittest.TestCase):
     def test_good_captions_pass(self):
-        segs = clean_segments([
-            Segment(i * 2000, i * 2000 + 1900, "word%d other%d unique%d" % (i, i, i))
-            for i in range(20)
-        ])
+        segs = clean_segments(
+            [
+                Segment(i * 2000, i * 2000 + 1900, "word%d other%d unique%d" % (i, i, i))
+                for i in range(20)
+            ]
+        )
         self.assertEqual(quality_report(segs, 40000), [])
 
     def test_empty_flagged(self):
@@ -255,11 +296,19 @@ class TestQuality(unittest.TestCase):
 
 class TestFormatters(unittest.TestCase):
     def setUp(self):
-        self.t = make_transcript(clean_segments([
-            Segment(4220, 5400, "This is a 3."),
-            Segment(6060, 10713, "It's sloppily written and rendered at an extremely low resolution."),
-            Segment(10713, 13720, "but your brain has no trouble recognizing it as a 3."),
-        ]))
+        self.t = make_transcript(
+            clean_segments(
+                [
+                    Segment(4220, 5400, "This is a 3."),
+                    Segment(
+                        6060,
+                        10713,
+                        "It's sloppily written and rendered at an extremely low resolution.",
+                    ),
+                    Segment(10713, 13720, "but your brain has no trouble recognizing it as a 3."),
+                ]
+            )
+        )
 
     def test_srt_structure(self):
         out = render(self.t, "srt")

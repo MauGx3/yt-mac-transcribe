@@ -1,0 +1,75 @@
+# Hooks run locally on `git commit` (after `pre-commit install`), on
+# pre-commit.ci for every pull request, and in the "Lint" GitHub Actions job.
+# Update pinned versions with `pre-commit autoupdate`.
+ci:
+  autofix_prs: true
+  autoupdate_schedule: monthly
+  autofix_commit_msg: "style: apply pre-commit fixes"
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  # pre-commit.ci runs on Linux without a Swift toolchain.
+  skip: [swift-format]
+
+# Xcode rewrites this file itself; leave its whitespace alone.
+exclude: '\.pbxproj$'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-xml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.5
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+        # Python only: leave code samples in the docs as written.
+        types_or: [python, pyi]
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.27
+    hooks:
+      - id: validate-pyproject
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        additional_dependencies: [tomli]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Uses the swift-format that ships with Xcode 16+ (`swift format`). Runs on
+  # macOS only; pre-commit.ci and the Lint job skip it (see `ci.skip`).
+  - repo: local
+    hooks:
+      - id: swift-format
+        name: swift-format
+        entry: swift format format --in-place --configuration .swift-format
+        language: system
+        types: [swift]

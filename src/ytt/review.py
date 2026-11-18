@@ -5,6 +5,7 @@ original and enhanced text, the word-level changes between them (hunks), and
 the spans a rewrite runner reported as uncertain. It is plain JSON so the CLI,
 the macOS app, and an HTML report can all read the same file.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -42,8 +43,12 @@ def clean_uncertain(items: Any, text: str) -> List[Dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         start, end = item.get("start"), item.get("end")
-        if (not isinstance(start, int) or not isinstance(end, int)
-                or isinstance(start, bool) or isinstance(end, bool)):
+        if (
+            not isinstance(start, int)
+            or not isinstance(end, int)
+            or isinstance(start, bool)
+            or isinstance(end, bool)
+        ):
             continue
         start, end = max(0, start), min(len(text), end)
         if start >= end:
@@ -59,8 +64,9 @@ def clean_uncertain(items: Any, text: str) -> List[Dict[str, Any]]:
     return out
 
 
-def _span_words(spans: Sequence[Dict[str, Any]],
-                words: Sequence[Tuple[str, int, int]]) -> List[int]:
+def _span_words(
+    spans: Sequence[Dict[str, Any]], words: Sequence[Tuple[str, int, int]]
+) -> List[int]:
     """Indices of ``words`` that overlap any character span."""
     hit = []
     for i, (_, ws, we) in enumerate(words):
@@ -109,20 +115,32 @@ def word_confidences(text: str, words: Sequence[Word]) -> List[Optional[float]]:
     return out
 
 
-def _unclear_spans(text: str, confs: Sequence[Optional[float]],
-                   threshold: float) -> List[Dict[str, Any]]:
+def _unclear_spans(
+    text: str, confs: Sequence[Optional[float]], threshold: float
+) -> List[Dict[str, Any]]:
     spans = []
     for i, (word, start, end) in enumerate(_words(text)):
         conf = confs[i] if i < len(confs) else None
         if conf is not None and conf < threshold:
-            spans.append({"start": start, "end": end, "kind": UNCLEAR_AUDIO,
-                          "word": i, "text": word, "score": round(conf, 4)})
+            spans.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "kind": UNCLEAR_AUDIO,
+                    "word": i,
+                    "text": word,
+                    "score": round(conf, 4),
+                }
+            )
     return spans
 
 
-def diff_segment(original: str, enhanced: str,
-                 uncertain: Optional[Sequence[Dict[str, Any]]] = None,
-                 unclear: Optional[Sequence[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def diff_segment(
+    original: str,
+    enhanced: str,
+    uncertain: Optional[Sequence[Dict[str, Any]]] = None,
+    unclear: Optional[Sequence[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Word-level diff of one segment, with uncertainty mapped onto hunks.
 
     ``uncertain`` are the rewrite's own doubts as character spans of the
@@ -137,9 +155,7 @@ def diff_segment(original: str, enhanced: str,
     flagged_new = set(_span_words(spans, b))
     flagged_orig = {u["word"] for u in audio}
     hunks: List[Dict[str, Any]] = []
-    matcher = difflib.SequenceMatcher(
-        a=[w[0] for w in a], b=[w[0] for w in b], autojunk=False
-    )
+    matcher = difflib.SequenceMatcher(a=[w[0] for w in a], b=[w[0] for w in b], autojunk=False)
     for op, i1, i2, j1, j2 in matcher.get_opcodes():
         if op == "equal":
             continue
@@ -178,13 +194,14 @@ def diff_segment(original: str, enhanced: str,
 
 def _needs_look(segment: Dict[str, Any]) -> bool:
     """A segment has a flagged change, or unclear audio the rewrite kept."""
-    return (any(h["flags"] for h in segment["hunks"])
-            or any(f.get("kind") == UNCLEAR_AUDIO and not f.get("changed")
-                   for f in segment["flags"]))
+    return any(h["flags"] for h in segment["hunks"]) or any(
+        f.get("kind") == UNCLEAR_AUDIO and not f.get("changed") for f in segment["flags"]
+    )
 
 
-def build_review(original: Transcript, enhanced: Transcript,
-                 unclear_below: float = DEFAULT_UNCLEAR_BELOW) -> Dict[str, Any]:
+def build_review(
+    original: Transcript, enhanced: Transcript, unclear_below: float = DEFAULT_UNCLEAR_BELOW
+) -> Dict[str, Any]:
     """Build the review document for a transcript and its rewrite."""
     if len(original.segments) != len(enhanced.segments):
         raise ValueError("original and enhanced transcripts differ in segment count")
@@ -193,15 +210,17 @@ def build_review(original: Transcript, enhanced: Transcript,
     segments = []
     for i, (orig, new) in enumerate(zip(original.segments, enhanced.segments)):
         seg_uncertain = uncertain[i] if i < len(uncertain) else []
-        unclear = _unclear_spans(orig.text, word_confidences(orig.text, orig.words),
-                                 unclear_below) if has_audio else []
+        unclear = (
+            _unclear_spans(orig.text, word_confidences(orig.text, orig.words), unclear_below)
+            if has_audio
+            else []
+        )
         entry = {"index": i, "start_ms": orig.start_ms, "end_ms": orig.end_ms}
         entry.update(diff_segment(orig.text, new.text, seg_uncertain, unclear))
         segments.append(entry)
     changed = sum(1 for s in segments if s["hunks"])
     flagged = sum(1 for s in segments if _needs_look(s))
-    unclear_words = sum(1 for s in segments for f in s["flags"]
-                        if f.get("kind") == UNCLEAR_AUDIO)
+    unclear_words = sum(1 for s in segments for f in s["flags"] if f.get("kind") == UNCLEAR_AUDIO)
     return {
         "version": REVIEW_VERSION,
         "video_id": original.video_id,
@@ -225,8 +244,9 @@ def render_review(review: Dict[str, Any]) -> str:
     return json.dumps(review, ensure_ascii=False, indent=2) + "\n"
 
 
-def apply_decisions(review: Dict[str, Any],
-                    rejected: Optional[Dict[int, Sequence[int]]] = None) -> List[str]:
+def apply_decisions(
+    review: Dict[str, Any], rejected: Optional[Dict[int, Sequence[int]]] = None
+) -> List[str]:
     """Final text per segment after the user's decisions.
 
     ``rejected`` maps a segment index to the hunk indexes the user rejected
