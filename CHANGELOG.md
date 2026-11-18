@@ -12,6 +12,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `tools/rewrite_with_local_model.py`: MLX-LM runner for `--rewrite-command`,
   referenced by the README but previously missing.
 
+### Changed
+
+- A batch or playlist run where some videos fail now exits `3` instead of `0`.
+  The macOS app accepts `3` for batch and playlist runs and keeps the
+  transcripts that were written.
+
 ## [0.1.0] - 2026-11-03
 
 First packaged release: the `ytt` command-line transcriber and a native macOS app.

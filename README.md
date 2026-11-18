@@ -132,6 +132,8 @@ ytt [URL ...] [options]
 
 `--out` is treated as a directory unless it ends in a known output extension. For example, `-o transcripts` creates a directory target even when it does not exist yet.
 
+Exit codes: `0` when every video succeeded, `1` when none did, `2` for a usage error or missing `yt-dlp`, and `3` when a batch or playlist wrote some transcripts but at least one video failed.
+
 ## Output formats
 
 - **`txt`**: readable paragraphs without timestamps by default.
