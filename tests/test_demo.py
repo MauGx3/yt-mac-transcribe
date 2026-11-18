@@ -19,7 +19,7 @@ from ytt.segments import Segment
 from ytt.util import Log
 
 HERE = os.path.dirname(__file__)
-NONE = {k: None for k in ("yt-dlp", "ffmpeg", "whisper.cpp", "whisper (openai)", "mlx_whisper")}
+NONE = dict.fromkeys(("yt-dlp", "ffmpeg", "whisper.cpp", "whisper (openai)", "mlx_whisper"))
 
 
 def write_silence(path, seconds=2.0):
@@ -153,9 +153,30 @@ class TestRecommend(unittest.TestCase):
 
     def test_fastest_among_equally_accurate(self):
         rows = [
-            {"engine": "mlx", "model": "large-v3", "status": "ok", "wer": 0.01, "seconds": 9, "realtime_x": 3},
-            {"engine": "mlx", "model": "small.en", "status": "ok", "wer": 0.02, "seconds": 2, "realtime_x": 15},
-            {"engine": "mlx", "model": "tiny.en", "status": "ok", "wer": 0.10, "seconds": 1, "realtime_x": 30},
+            {
+                "engine": "mlx",
+                "model": "large-v3",
+                "status": "ok",
+                "wer": 0.01,
+                "seconds": 9,
+                "realtime_x": 3,
+            },
+            {
+                "engine": "mlx",
+                "model": "small.en",
+                "status": "ok",
+                "wer": 0.02,
+                "seconds": 2,
+                "realtime_x": 15,
+            },
+            {
+                "engine": "mlx",
+                "model": "tiny.en",
+                "status": "ok",
+                "wer": 0.10,
+                "seconds": 1,
+                "realtime_x": 30,
+            },
         ]
         rec = demo.recommend(self.report(rows), NONE)
         self.assertEqual(rec["asr"]["model"], "small.en")
@@ -163,14 +184,30 @@ class TestRecommend(unittest.TestCase):
 
     def test_llm_that_makes_things_worse_is_ignored(self):
         llm = [
-            {"model": "bad", "status": "ok", "wer_before": 0.1, "wer": 0.2, "strict": 0.0, "seconds": 1},
-            {"model": "good", "status": "ok", "wer_before": 0.1, "wer": 0.0, "strict": 0.05, "seconds": 5},
+            {
+                "model": "bad",
+                "status": "ok",
+                "wer_before": 0.1,
+                "wer": 0.2,
+                "strict": 0.0,
+                "seconds": 1,
+            },
+            {
+                "model": "good",
+                "status": "ok",
+                "wer_before": 0.1,
+                "wer": 0.0,
+                "strict": 0.05,
+                "seconds": 5,
+            },
         ]
         self.assertEqual(demo.recommend(self.report(llm_rows=llm), NONE)["llm"]["model"], "good")
 
     def test_fallback_by_memory(self):
         self.assertIn("1.5B", demo.recommend(self.report(ram=8), NONE)["llm"]["model"])
-        self.assertEqual(demo.recommend(self.report(ram=16), NONE)["llm"]["model"], demo.DEFAULT_LLM)
+        self.assertEqual(
+            demo.recommend(self.report(ram=16), NONE)["llm"]["model"], demo.DEFAULT_LLM
+        )
         self.assertIn("7B", demo.recommend(self.report(ram=32), NONE)["llm"]["model"])
         self.assertFalse(demo.recommend(self.report(), NONE)["asr"]["measured"])
 
