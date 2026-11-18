@@ -32,6 +32,10 @@ The app launches `ytt` directly with Foundation `Process`; it does not use a she
 
 The rewrite command can also be supplied through `YTT_REWRITE_COMMAND` when the app starts. App Settings are stored in `UserDefaults` and take precedence. No model is downloaded or bundled by this app.
 
+## Benchmark tab
+
+The Benchmark tab runs `ytt demo --json` on a copyright-free sample voiced with macOS `say`, then lists the time and accuracy of each installed speech model and, when a rewrite command is set, each MLX-LM model. **Use** or **Use Recommended** updates the speech engine, speech model and the rewrite command's `--model`. See [`docs/demo.md`](../../docs/demo.md).
+
 ## Troubleshooting
 
 - **`ytt` not found:** set the executable path in Settings and confirm it is executable in Terminal.

@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `ytt demo`: benchmarks speech-to-text engines and models and MLX-LM cleanup
+  models on a copyright-free sample voiced on the Mac, recommends a model for
+  each, and saves the choice to `~/.config/ytt/config.json` as the new
+  default. See `docs/demo.md`.
+- macOS app: Benchmark tab that runs `ytt demo` and applies the chosen models.
 - `tools/rewrite_with_local_model.py`: MLX-LM runner for `--rewrite-command`,
   referenced by the README but previously missing.
 - Review file: a rewrite now also writes `<name>.review.json` with a word-level

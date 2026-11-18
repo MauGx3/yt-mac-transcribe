@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 
 from . import __version__
 from . import asr as asr_mod
+from . import config as config_mod
 from .cache import DEFAULT_TTL, Cache
 from .captions import parse_any
 from .formatter import FORMATS, render
@@ -28,6 +29,10 @@ EXIT_PARTIAL = 3
 
 
 def build_parser() -> argparse.ArgumentParser:
+    saved = config_mod.load()
+    saved_engine = saved.get("asr_engine")
+    if saved_engine not in asr_mod.ENGINES:
+        saved_engine = "auto"
     p = argparse.ArgumentParser(
         prog="ytt",
         description="YouTube transcripts in seconds — uses YouTube's own caption "
@@ -36,7 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
         "  ytt https://youtu.be/aircAruvnKk\n"
         "  ytt <url> -f srt vtt json -o ~/Downloads\n"
         "  ytt <url> --langs pt,en --asr auto\n"
-        "  ytt --batch urls.txt -o transcripts/\n",
+        "  ytt --batch urls.txt -o transcripts/\n"
+        "  ytt demo        benchmark models on this Mac and pick defaults\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("urls", nargs="*", help="YouTube video or playlist URLs")
@@ -59,14 +65,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-m",
         "--model",
-        default=asr_mod.DEFAULT_MODEL,
+        default=saved.get("asr_model") or asr_mod.DEFAULT_MODEL,
         help="ASR model: a short name (%s), a whisper.cpp .bin path, "
         "or an MLX repo id (default: %%(default)s)" % ", ".join(asr_mod.MLX_MODELS),
     )
     p.add_argument(
         "--engine",
         choices=list(asr_mod.ENGINES),
-        default="auto",
+        default=saved_engine,
         help="ASR engine: whisper-cpp, mlx (mlx-whisper, Apple Silicon), "
         "or auto = whichever is installed, whisper.cpp first (default)",
     )
@@ -469,8 +475,13 @@ def _render_raw(t: Transcript, fmt: str, timestamps: bool) -> str:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    raw = sys.argv[1:] if argv is None else list(argv)
+    if raw and raw[0] == "demo":
+        from . import demo
+
+        return demo.main(raw[1:])
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw)
     if args.rewrite_command is not None and not args.rewrite_command:
         parser.error("--rewrite-command requires a command")
     log = Log(quiet=args.quiet, verbose=args.verbose)
