@@ -103,7 +103,12 @@ struct AppSettings: Equatable {
     }
 
     func persist(to defaults: UserDefaults = .standard) {
-        defaults.set(yttExecutable.path, forKey: "yttExecutable")
+        // The bundled copy moves with the app, so its path is never saved.
+        if yttExecutable.path == Self.bundledExecutable?.path {
+            defaults.removeObject(forKey: "yttExecutable")
+        } else {
+            defaults.set(yttExecutable.path, forKey: "yttExecutable")
+        }
         defaults.set(rewriteCommand.joined(separator: " "), forKey: "rewriteCommand")
         defaults.set(outputDirectory.path, forKey: "outputDirectory")
         defaults.set(effectiveFormats.map(\.rawValue).joined(separator: ","), forKey: "formats")

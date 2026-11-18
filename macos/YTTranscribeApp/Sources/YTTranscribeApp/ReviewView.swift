@@ -59,79 +59,176 @@ final class ReviewViewModel: ObservableObject, Identifiable {
     }
 }
 
-struct ReviewView: View {
-    @ObservedObject var model: ReviewViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var flaggedCursor = 0
+/// Loads a review file and shows it in its own window.
+struct ReviewWindow: View {
+    static let id = "review"
+    let reviewFile: URL
+    let model: TranscriptionViewModel
+    @State private var session: ReviewViewModel?
+    @State private var loadError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            legend
-            ScrollViewReader { proxy in
-                List(model.visibleSegments) { segment in
+        Group {
+            if let session {
+                ReviewView(model: session)
+            } else if let loadError {
+                ContentUnavailableView(
+                    "Could Not Open the Review",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(loadError)
+                )
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(minWidth: 720, minHeight: 520)
+        .task(id: reviewFile) { load() }
+    }
+
+    private func load() {
+        do {
+            let loaded = try ReviewViewModel(reviewFile: reviewFile)
+            let model = self.model
+            let file = reviewFile
+            loaded.onSave = { copy in model.reviewSaved(reviewFile: file, copy: copy) }
+            session = loaded
+            loadError = nil
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+}
+
+struct ReviewView: View {
+    @ObservedObject var model: ReviewViewModel
+    /// Position among the visible unsure segments; nil until the user moves.
+    @State private var flaggedCursor: Int?
+
+    private var flaggedSegments: [ReviewDocument.Segment] {
+        model.visibleSegments.filter(\.isFlagged)
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            List {
+                Section { summary }
+                ForEach(model.visibleSegments) { segment in
                     SegmentReviewRow(segment: segment, model: model)
                         .id(segment.index)
                 }
-                .onChange(of: flaggedCursor) { _ in
-                    let flagged = model.document.segments.filter(\.isFlagged)
-                    guard !flagged.isEmpty else { return }
-                    proxy.scrollTo(flagged[flaggedCursor % flagged.count].index, anchor: .top)
+            }
+            .overlay {
+                if model.visibleSegments.isEmpty {
+                    ContentUnavailableView(
+                        model.filter == .flagged ? "Nothing Marked Unsure" : "No Changes",
+                        systemImage: "checkmark.circle",
+                        description: Text("There is nothing to review in this view.")
+                    )
                 }
             }
-            footer
+            .onChange(of: flaggedCursor) { _, cursor in
+                let flagged = flaggedSegments
+                guard let cursor, !flagged.isEmpty else { return }
+                let index = ((cursor % flagged.count) + flagged.count) % flagged.count
+                withAnimation { proxy.scrollTo(flagged[index].index, anchor: .top) }
+            }
+            .onChange(of: model.filter) { _, _ in flaggedCursor = nil }
         }
-        .padding(20)
-        .frame(minWidth: 720, minHeight: 520)
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Review: \(model.document.title)").font(.title2.weight(.semibold))
-                Text("\(model.document.stats.changed) segments changed, \(model.document.stats.flagged) with unsure spots. Enhanced → Reviewed")
-                    .font(.callout).foregroundStyle(.secondary)
+        .safeAreaInset(edge: .bottom) {
+            decisionBar
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+        }
+        .navigationTitle(model.document.title)
+        .navigationSubtitle("Enhanced → Reviewed")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Show", selection: $model.filter) {
+                    ForEach(ReviewViewModel.Filter.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
             }
-            Spacer()
-            Picker("Show", selection: $model.filter) {
-                ForEach(ReviewViewModel.Filter.allCases) { Text($0.rawValue).tag($0) }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    model.save()
+                } label: {
+                    Label("Save Reviewed", systemImage: "square.and.arrow.down")
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .help("Writes the reviewed copy next to the original. The original and enhanced files stay as they are.")
             }
-            .pickerStyle(.segmented)
-            .frame(width: 240)
         }
     }
 
     @ViewBuilder
-    private var legend: some View {
-        HStack(spacing: 16) {
-            FlagBadge(flag: .aiUnsure)
-            FlagBadge(flag: .unclearAudio)
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(model.document.stats.changed) segments changed, \(model.document.stats.flagged) with unsure spots.")
+                .font(.headline)
+            HStack(spacing: 16) {
+                FlagBadge(flag: .aiUnsure)
+                FlagBadge(flag: .unclearAudio)
+            }
             if !model.document.stats.hasConfidence {
                 Text("This rewrite gave no confidence information, so nothing is marked unsure.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+        .padding(.vertical, 4)
     }
 
-    private var footer: some View {
-        HStack {
-            Button("Next unsure") { flaggedCursor += 1 }
+    private var positionText: String {
+        let count = flaggedSegments.count
+        guard count > 0 else { return "None unsure" }
+        guard let cursor = flaggedCursor else { return "\(count) unsure" }
+        let index = ((cursor % count) + count) % count
+        return "\(index + 1) of \(count) unsure"
+    }
+
+    /// Floating bar for moving between unsure spots and finishing the review.
+    private var decisionBar: some View {
+        AppGlassContainer(spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    flaggedCursor = (flaggedCursor ?? 0) - 1
+                } label: {
+                    Label("Previous Unsure", systemImage: "chevron.up")
+                }
+                .labelStyle(.iconOnly)
+                .help("Previous unsure spot (Option-Up)")
+                .keyboardShortcut(.upArrow, modifiers: .option)
+                .disabled(flaggedSegments.isEmpty)
+                Text(positionText)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Button {
+                    flaggedCursor = (flaggedCursor ?? -1) + 1
+                } label: {
+                    Label("Next Unsure", systemImage: "chevron.down")
+                }
+                .labelStyle(.iconOnly)
+                .help("Next unsure spot (Option-Down)")
                 .keyboardShortcut(.downArrow, modifiers: .option)
-                .disabled(model.document.stats.flagged == 0)
-            Button("Accept all without unsure marks") { model.acceptAllUnflagged() }
-            Spacer()
-            if let saved = model.savedURL {
-                Button("Open Reviewed") { NSWorkspace.shared.open(saved) }
+                .disabled(flaggedSegments.isEmpty)
+                Divider().frame(height: 18)
+                Button("Accept All Without Unsure Marks") { model.acceptAllUnflagged() }
+                Spacer(minLength: 8)
+                if let error = model.saveError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.red).lineLimit(2)
+                } else if let saved = model.savedURL {
+                    Button("Open Reviewed") { NSWorkspace.shared.open(saved) }
+                } else {
+                    Text("\(model.rejectedCount) rejected").font(.callout).foregroundStyle(.secondary)
+                }
             }
-            if let error = model.saveError {
-                Text(error).foregroundStyle(.red).font(.caption)
-            }
-            Text("\(model.rejectedCount) rejected").foregroundStyle(.secondary)
-            Button("Save Reviewed") { model.save() }
-                .keyboardShortcut("s", modifiers: .command)
-            Button("Close") { dismiss() }
-                .keyboardShortcut(.cancelAction)
+            .appSecondaryButtonStyle()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .appGlass(in: Capsule())
         }
+        .frame(maxWidth: 760)
     }
 }
 
