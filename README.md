@@ -191,6 +191,7 @@ Live checks access YouTube and may be affected by rate limits. Read the developm
 - Videos without usable captions require the optional ASR toolchain.
 - YouTube translations are machine-generated; prefer the original language when it is available.
 - `live_chat` is excluded because its payload is not a subtitle track.
+- The python.org installer for macOS ships without CA certificates until you run **Install Certificates.command** (in `/Applications/Python 3.x/`). Without them, every caption fetch fails TLS verification and falls back to the much slower `yt-dlp` path (`ytt -v` shows `CERTIFICATE_VERIFY_FAILED`). `ytt` works around this by using `certifi` when installed, or the macOS system bundle at `/etc/ssl/cert.pem`, but running the command is the proper fix. Setting `SSL_CERT_FILE` always takes precedence.
 
 ## Contributing
 
