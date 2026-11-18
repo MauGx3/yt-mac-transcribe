@@ -101,6 +101,9 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     /// Reviewed copies are not produced for batch runs, so no rewrite flags.
+    /// `ytt` exit code for a batch or playlist where some videos failed.
+    static let partialFailureStatus: Int32 = 3
+
     static func batchArguments(urls: [String], playlist: Bool, settings: AppSettings) -> [String] {
         (playlist ? ["--playlist"] : []) + urls
             + ["-f"] + settings.effectiveFormats.map(\.rawValue) + ["-o", settings.outputDirectory.path]
@@ -129,9 +132,12 @@ struct TranscriptionRunner: TranscriptionRunning {
 
     func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles] {
         guard !urls.isEmpty else { throw TranscriptionRunnerError.missingOutput }
+        // A batch where only some videos failed still wrote the others, so
+        // keep them; the summary shows how many of the requested URLs worked.
         let paths = try await outputPaths(
             arguments: Self.batchArguments(urls: urls, playlist: playlist, settings: settings),
-            settings: settings
+            settings: settings,
+            acceptedStatuses: [0, Self.partialFailureStatus]
         )
         let groups = Self.groups(from: paths, formatCount: settings.effectiveFormats.count)
         guard !groups.isEmpty else { throw TranscriptionRunnerError.missingOutput }
@@ -144,7 +150,7 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     /// Runs `ytt` and returns the existing files it printed on stdout.
-    private func outputPaths(arguments: [String], settings: AppSettings) async throws -> [URL] {
+    private func outputPaths(arguments: [String], settings: AppSettings, acceptedStatuses: Set<Int32> = [0]) async throws -> [URL] {
         try FileManager.default.createDirectory(at: settings.outputDirectory, withIntermediateDirectories: true)
         let result: ProcessResult
         do {
@@ -153,7 +159,7 @@ struct TranscriptionRunner: TranscriptionRunning {
         } catch is CancellationError {
             throw TranscriptionRunnerError.cancelled
         }
-        guard result.status == 0 else {
+        guard acceptedStatuses.contains(result.status) else {
             throw TranscriptionRunnerError.commandFailed(status: result.status, detail: result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return result.stdout

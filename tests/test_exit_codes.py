@@ -25,6 +25,26 @@ class TestExitCodes(unittest.TestCase):
     def test_no_transcript_still_exits_one(self):
         self.assertEqual(self.run_main(["https://youtu.be/x"], (None, [])), 1)
 
+    def run_batch(self, results):
+        """Run two URLs where process_one yields `results` in order."""
+        with mock.patch.object(cli, "YouTube"), \
+                mock.patch.object(cli, "process_one", side_effect=results), \
+                contextlib.redirect_stderr(io.StringIO()), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return cli.main(["https://youtu.be/a", "https://youtu.be/b",
+                             "--no-cache", "--delay", "0", "--retries", "0"])
+
+    def test_batch_all_succeed_exits_zero(self):
+        done = (object(), [])
+        self.assertEqual(self.run_batch([done, done]), 0)
+
+    def test_batch_partial_failure_exits_three(self):
+        done = (object(), [])
+        self.assertEqual(self.run_batch([done, cli.VideoError("bad url")]), 3)
+
+    def test_batch_all_fail_exits_one(self):
+        self.assertEqual(self.run_batch([cli.VideoError("a"), (None, [])]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
