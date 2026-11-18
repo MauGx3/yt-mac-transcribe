@@ -25,6 +25,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`--word-timestamps True`) word confidence is kept as `conf` in JSON output,
   and the review file marks words under 0.5, both those the AI changed and those
   it left alone.
+- HTML review report: every rewrite also writes `<name>.review.html`, a
+  self-contained page with both labels, keep/reject per change, and a
+  "Download Reviewed" button. `ytt --review-report FILE` rebuilds it.
 
 ### Changed
 

@@ -85,7 +85,7 @@ A runner should preserve meaning and avoid adding information that is not suppor
 
 ## Review file and uncertainty (protocol v2)
 
-Every successful rewrite also writes `My Video.review.json` next to the original. It holds, per segment, the original text, the enhanced text, the word-level changes between them (`hunks`), and any spans the runner reported as uncertain. A review screen or report reads this file; nothing else needs the rewritten files to show a diff. The path is printed last, after the original and rewritten paths.
+Every successful rewrite also writes `My Video.review.json` next to the original. It holds, per segment, the original text, the enhanced text, the word-level changes between them (`hunks`), and any spans the runner reported as uncertain. A review screen or report reads this file; nothing else needs the rewritten files to show a diff. Its path is printed after the original and rewritten paths, followed by the HTML report described below.
 
 Requests now carry `"protocol": 2`. A runner may add an optional `uncertain` list to any response segment:
 
@@ -104,6 +104,18 @@ When the transcript came from local speech recognition, `ytt` also keeps how sur
 - `changed: false`: the rewrite left the word alone. It may still be misheard, so the review screen lists it under the segment.
 
 A change can carry both `ai_unsure` and `unclear_audio`. `stats.unclear_words` counts the unclear words, `stats.has_audio_confidence` says whether scores were available, and `stats.has_confidence` is `true` when either kind was. YouTube captions carry no scores, so transcripts made from captions never show "Unclear audio".
+
+### HTML report
+
+Next to the review file, `ytt` also writes `My Video.review.html`: one self-contained page (no network access, nothing else to download) that shows every change, the **AI unsure** and **Unclear audio** labels, and the unclear words the rewrite left unchanged. Timestamps link to that moment of the video. Open it in any browser.
+
+In the page, each change has a **keep** checkbox. Untick the ones you disagree with, then press **Download Reviewed** to save `My Video.reviewed.txt` with your choices, the same file the macOS app saves. **Only unsure** hides the segments with nothing to check, and **Accept all without unsure marks** ticks every change that has no label. Your choices are not stored in the page, so download before closing it.
+
+To rebuild the page from an existing review file, for example after updating `ytt`:
+
+```bash
+ytt --review-report "My Video.review.json"
+```
 
 ## Building a local runner
 

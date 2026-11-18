@@ -102,6 +102,7 @@ class TestWriteOutputs(unittest.TestCase):
                     "Video.rewritten.txt",
                     "Video.rewritten.json",
                     "Video.review.json",
+                    "Video.review.html",
                 ],
             )
             with open(os.path.join(tmp, "Video.rewritten.txt"), encoding="utf-8") as fh:

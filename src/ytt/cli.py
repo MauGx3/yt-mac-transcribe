@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -14,6 +15,7 @@ from .cache import DEFAULT_TTL, Cache
 from .captions import parse_any
 from .formatter import FORMATS, render
 from .model import Transcript
+from .report import render_report
 from .review import build_review, render_review
 from .rewriter import rewrite_transcript
 from .segments import quality_report
@@ -160,6 +162,11 @@ def build_parser() -> argparse.ArgumentParser:
         "to the command, which reads JSON on stdin and writes "
         "JSON on stdout",
     )
+    p.add_argument(
+        "--review-report",
+        metavar="REVIEW_JSON",
+        help="rebuild the HTML review report from an existing <name>.review.json and exit",
+    )
     p.add_argument("--version", action="version", version="ytt " + __version__)
     return p
 
@@ -227,6 +234,28 @@ def review_output_path(path: str) -> str:
     return root + ".review.json"
 
 
+def report_output_path(review_path: str) -> str:
+    """HTML report next to a review file: ``video.review.json`` → ``video.review.html``."""
+    root = review_path[: -len(".json")] if review_path.endswith(".json") else review_path
+    return root + ".html"
+
+
+def reviewed_name(review_path: str) -> str:
+    """Download name for the Reviewed copy, matching the macOS app."""
+    name = os.path.basename(review_path)
+    base = (
+        name[: -len(".review.json")] if name.endswith(".review.json") else os.path.splitext(name)[0]
+    )
+    return base + ".reviewed.txt"
+
+
+def write_report(review: dict, review_path: str) -> str:
+    path = report_output_path(review_path)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(render_report(review, reviewed_name(review_path)))
+    return path
+
+
 def _write_formats(
     t: Transcript, args, title: str, vid: str, multi: bool, log: Log, companion: bool
 ) -> List[str]:
@@ -271,14 +300,21 @@ def write_outputs(
     companions = _write_formats(rewritten, args, title, vid, multi, log, True)
     review_path = review_output_path(written[0])
     try:
+        review = build_review(transcript, rewritten)
         with open(review_path, "w", encoding="utf-8") as fh:
-            fh.write(render_review(build_review(transcript, rewritten)))
+            fh.write(render_review(review))
     except (OSError, ValueError) as exc:
         # The review sidecar is advisory; never lose the rewritten files over it.
         log.warn("could not write review file: %s" % exc)
         return written + companions
     log.debug("wrote %s (review)" % review_path)
-    return written + companions + [review_path]
+    try:
+        report_path = write_report(review, review_path)
+    except OSError as exc:
+        log.warn("could not write review report: %s" % exc)
+        return written + companions + [review_path]
+    log.debug("wrote %s (review report)" % report_path)
+    return written + companions + [review_path, report_path]
 
 
 def process_one(
@@ -438,6 +474,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.rewrite_command is not None and not args.rewrite_command:
         parser.error("--rewrite-command requires a command")
     log = Log(quiet=args.quiet, verbose=args.verbose)
+
+    if args.review_report:
+        try:
+            with open(args.review_report, encoding="utf-8") as fh:
+                review = json.load(fh)
+            if not isinstance(review, dict) or not isinstance(review.get("segments"), list):
+                raise ValueError("not a ytt review file")
+            print(write_report(review, args.review_report))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            log.error("could not build review report: %s" % exc)
+            return 1
+        return 0
 
     if args.list_models:
         for name, repo in asr_mod.MLX_MODELS.items():
