@@ -82,12 +82,12 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 }
 
-private enum TestFailure: LocalizedError {
+enum TestFailure: LocalizedError {
     case expected
     var errorDescription: String? { "expected failure" }
 }
 
-private final class StubRunner: TranscriptionRunning {
+final class StubRunner: TranscriptionRunning {
     let transcriptionResult: TranscriptFiles
     let reviewResult: TranscriptFiles?
     let error: Error?
@@ -107,6 +107,15 @@ private final class StubRunner: TranscriptionRunning {
         if delayNanoseconds > 0 { try await Task.sleep(nanoseconds: delayNanoseconds) }
         if let error { throw error }
         return transcriptionResult
+    }
+
+    private(set) var batchCalls: [(urls: [String], playlist: Bool)] = []
+    var batchResult: [TranscriptFiles] = []
+
+    func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles] {
+        batchCalls.append((urls, playlist))
+        if let error { throw error }
+        return batchResult
     }
 
     func review(url: String, settings: AppSettings) async throws -> TranscriptFiles {
