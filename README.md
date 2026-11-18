@@ -73,6 +73,19 @@ ytt https://youtu.be/aircAruvnKk --timestamps -o ~/Documents
 ytt --batch urls.txt -o transcripts/
 ```
 
+### Benchmark this Mac and pick models
+
+```bash
+ytt demo
+```
+
+`ytt demo` voices a short, copyright-free script with the Mac's built-in
+`say` command, transcribes it with every installed engine and model, and
+times every installed MLX-LM model on cleaning up a garbled copy. It then
+recommends the most accurate fast option for each job and saves your choice
+as the default. The Mac app has the same thing in its **Benchmark** tab. See
+[`docs/demo.md`](docs/demo.md).
+
 See [`docs/development.md`](docs/development.md) for the contributor setup, architecture, test strategy, debugging workflow, and release checklist.
 
 ## How it works
