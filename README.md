@@ -31,6 +31,7 @@ Both give the same transcripts. The app runs the `ytt` command for you.
 - [Videos without captions: transcribing on your Mac](#videos-without-captions-transcribing-on-your-mac)
 - [The Mac app](#the-mac-app)
 - [Cleaning up a transcript with a local AI model](#cleaning-up-a-transcript-with-a-local-ai-model)
+- [Find the best models for your Mac](#find-the-best-models-for-your-mac)
 - [Output formats and file names](#output-formats-and-file-names)
 - [All options](#all-options)
 - [Something went wrong?](#something-went-wrong)
@@ -158,8 +159,9 @@ one:
 | **whisper.cpp** | Installs with Homebrew. You download a model file once. |
 | **MLX Whisper** | Runs on the Apple silicon GPU and is often faster on M-series Macs. Downloads its model the first time you use it. |
 
-If both are installed, `ytt` uses whisper.cpp. Choose one with
-`--engine whisper-cpp` or `--engine mlx`.
+If both are installed, `ytt` uses whisper.cpp, unless you saved another choice
+with [`ytt demo`](#find-the-best-models-for-your-mac). Choose one for a single
+run with `--engine whisper-cpp` or `--engine mlx`.
 
 ### Option 1: whisper.cpp
 
@@ -222,7 +224,8 @@ downloaded.
 ### Which model should I use?
 
 Bigger models make fewer mistakes but run slower and take more disk space.
-`small.en` is the default and a good place to start.
+`small.en` is the default and a good place to start. `ytt demo` can measure
+them on your Mac and save the best fit as your default.
 
 | Model | Size | Notes |
 |---|---|---|
@@ -271,27 +274,51 @@ troubleshooting.
 Automatic captions often get names, homophones ("their" or "there") and
 punctuation wrong. `ytt` can pass the finished transcript to a language model on
 your Mac, which fixes the wording using the surrounding sentences. The timings
-stay the same.
+stay the same. Your original file is never changed. The AI's version is saved
+next to it as `My Video.rewritten.txt`.
 
-Your original file is never changed. The cleaned-up copy is saved next to it,
-with `.rewritten` in the name: `My Video.txt` and `My Video.rewritten.txt`.
+You then review the changes, in the Mac app or in a page that opens in your
+browser. You accept or reject each change, then save your final
+`My Video.reviewed.txt`. Changes the AI wasn't sure about, and words the speech
+recognition may have misheard, are labelled so you can check those first.
 
-A ready-made runner for Apple silicon is included:
+Setup takes two commands, on an Apple silicon Mac:
 
 ```bash
-pipx install mlx-lm        # or: python3 -m pip install mlx-lm
-ytt URL -f txt srt \
-  --rewrite-command python3 tools/rewrite_with_local_model.py
+python3 -m venv ~/.venvs/ytt-ai
+~/.venvs/ytt-ai/bin/pip install mlx-lm
 ```
 
-Two things to know:
+Then, from the `yt-transcribe` folder:
 
-- `--rewrite-command` must come **last**. Everything after it is passed to the
-  model runner, not to `ytt`.
-- The first run downloads a model of a few gigabytes.
+```bash
+ytt URL -f txt srt \
+  --rewrite-command ~/.venvs/ytt-ai/bin/python tools/rewrite_with_local_model.py
+```
 
-You can also connect any other local model, such as Ollama or llama.cpp. See
-[Local context-aware rewriting](docs/local-rewriting.md) for how that works.
+`--rewrite-command` must come **last**. The first run downloads a model of
+about 1.7 GB.
+
+**[AI features guide](docs/ai-features.md)** covers everything step by step:
+setup, the Mac app, reviewing changes, what the labels mean, and choosing
+models.
+
+## Find the best models for your Mac
+
+Not sure which speech-to-text model or language model to use? `ytt demo` tests
+the ones you have installed on a short public-domain sample that your Mac reads
+aloud. It measures their speed and mistakes, recommends the best fit, and saves
+your choice as the new default:
+
+```bash
+ytt demo
+```
+
+To include language models, add
+`--runner ~/.venvs/ytt-ai/bin/python tools/rewrite_with_local_model.py` at the
+end. The Mac app has the same test in its **Benchmark** tab. See the
+[AI features guide](docs/ai-features.md#find-the-best-models-for-your-mac) and
+[docs/demo.md](docs/demo.md).
 
 ## Output formats and file names
 
@@ -349,11 +376,15 @@ Cache
       --cache-ttl SECS     how long cached captions are kept (default: 604800, one week)
       --clear-cache        delete the cache and exit
 
-Cleanup with a local model
+Cleanup with a local model (see docs/ai-features.md)
       --rewrite-timeout SECS
                            how long the model may take (default: 300)
       --rewrite-command CMD ...
                            run a local model after transcription (must be last)
+      --review-report FILE rebuild the browser review page from a .review.json file
+
+Model picker
+  ytt demo [options]       benchmark models on this Mac and save defaults (docs/demo.md)
 
 Other
   -q, --quiet / -v, --verbose / --stats / --version / -h, --help
@@ -437,6 +468,10 @@ estimates.
 - **Whisper:** a family of open speech recognition models. **whisper.cpp** and
   **MLX Whisper** are two programs that run Whisper models on a Mac.
 - **MLX:** Apple's framework for running machine learning models on Apple silicon.
+- **LLM (large language model):** a model that reads and writes text. Here it
+  fixes the wording of a finished transcript.
+- **Enhanced / Reviewed:** the *enhanced* transcript is the AI's version. The
+  *reviewed* transcript is your final copy, with only the changes you accepted.
 - **Model:** the file or folder of learned weights a speech or language engine
   needs. You download one once and reuse it.
 - **yt-dlp:** a widely used open-source tool for reading YouTube pages and

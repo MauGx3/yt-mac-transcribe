@@ -69,6 +69,8 @@ The package itself does not download whisper.cpp models; `ytt` looks for the fil
 ├── CHANGELOG.md
 ├── pyproject.toml
 ├── docs/
+│   ├── ai-features.md       # user guide: cleanup, review, model picker
+│   ├── demo.md              # ytt demo reference
 │   ├── development.md       # this guide
 │   ├── local-rewriting.md   # --rewrite-command protocol
 │   └── troubleshooting.md   # user-facing problems and fixes
@@ -82,6 +84,8 @@ The package itself does not download whisper.cpp models; `ytt` looks for the fil
 │   ├── model.py             # Transcript model and provenance fields
 │   ├── formatter.py         # txt, SRT, VTT, JSON, and Markdown output
 │   ├── cache.py             # filesystem metadata and caption cache
+│   ├── config.py            # saved defaults (~/.config/ytt/config.json)
+│   ├── demo.py              # ytt demo: benchmark and model picker
 │   ├── asr.py               # optional whisper.cpp and mlx-whisper integration
 │   ├── rewriter.py          # local model rewrite protocol (--rewrite-command)
 │   ├── tls.py               # CA bundle fallback for python.org builds

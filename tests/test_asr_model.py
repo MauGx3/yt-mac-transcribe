@@ -1,4 +1,5 @@
 """Model-path resolution for the whisper.cpp fallback. No network."""
+
 import os
 import sys
 import tempfile
@@ -7,7 +8,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt import asr  # noqa: E402
+from ytt import asr
 
 
 class TestResolveModel(unittest.TestCase):
@@ -34,8 +35,9 @@ class TestResolveModel(unittest.TestCase):
         message = str(ctx.exception)
         # Homebrew's whisper-cpp ships no download script, so the hint is a plain curl.
         self.assertNotIn("whisper-cpp-download-ggml-model", message)
-        self.assertIn("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
-                      message)
+        self.assertIn(
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin", message
+        )
         self.assertIn("~/.cache/whisper/ggml-small.en.bin", message)
 
     def test_env_dir_is_searched_first(self):

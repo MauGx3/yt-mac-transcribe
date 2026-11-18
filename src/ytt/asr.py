@@ -5,6 +5,7 @@ This is the pipeline from the original plan (yt-dlp audio -> ffmpeg 16 kHz mono
 majority of YouTube videos the caption path is ~50x faster and needs no models,
 no ffmpeg, and no build step.
 """
+
 from __future__ import annotations
 
 import json
@@ -80,8 +81,10 @@ def whisper_cpp_download_command(model: str) -> str:
     Homebrew's whisper-cpp formula ships no download script, so this is a
     plain curl that works anywhere.
     """
-    return ("mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-%s.bin %s"
-            % (model, WHISPER_CPP_MODEL_URL % model))
+    return "mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-%s.bin %s" % (
+        model,
+        WHISPER_CPP_MODEL_URL % model,
+    )
 
 
 def resolve_model(model: str, search_dirs: Optional[List[str]] = None) -> str:
@@ -125,7 +128,9 @@ def hf_cache_dir() -> str:
     hub = os.environ.get("HF_HUB_CACHE")
     if hub:
         return hub
-    home = os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+    home = os.environ.get("HF_HOME") or os.path.join(
+        os.path.expanduser("~"), ".cache", "huggingface"
+    )
     return os.path.join(home, "hub")
 
 
@@ -199,11 +204,86 @@ def asr_ready(engine: str = "auto") -> bool:
 
 
 def mlx_command(binary: str, repo: str, wav: str, outdir: str, lang: str) -> List[str]:
-    cmd = [binary, wav, "--model", repo, "-f", "json", "-o", outdir,
-           "--output-name", "out", "--verbose", "False"]
+    cmd = [
+        binary,
+        wav,
+        "--model",
+        repo,
+        "-f",
+        "json",
+        "-o",
+        outdir,
+        "--output-name",
+        "out",
+        "--verbose",
+        "False",
+    ]
     if lang and lang != "auto":
         cmd += ["--language", lang]
     return cmd
+
+
+def _missing_hint(chosen: str, model: str) -> str:
+    if chosen == "mlx":
+        return "  brew install yt-dlp ffmpeg\n  pipx install mlx-whisper"
+    return (
+        "  brew install yt-dlp ffmpeg whisper-cpp\n"
+        "then download a model:\n  %s" % whisper_cpp_download_command(model)
+    )
+
+
+def prepare_engine(model: str, engine: str = "auto", backends: Optional[dict] = None):
+    """Check the engine binary and resolve the model before any slow work.
+
+    Returns ``(chosen, binary, model_ref)`` where ``model_ref`` is a ggml file
+    path for whisper.cpp or a repo id / directory for MLX.
+    """
+    b = backends if backends is not None else detect_backends()
+    chosen = pick_engine(engine, b) or "whisper-cpp"
+    binary_key = "mlx_whisper" if chosen == "mlx" else "whisper.cpp"
+    if not b.get(binary_key):
+        raise ASRUnavailable(
+            "%s is not installed. Install with:\n%s" % (binary_key, _missing_hint(chosen, model))
+        )
+    ref = resolve_mlx_model(model) if chosen == "mlx" else resolve_model(model)
+    return chosen, b[binary_key], ref
+
+
+def transcribe_wav(
+    wav: str,
+    chosen: str,
+    binary: str,
+    model_ref: str,
+    log: Log,
+    lang: str = "auto",
+) -> List[Segment]:
+    """Run a prepared engine (see :func:`prepare_engine`) on a 16 kHz mono wav."""
+    tmpdir = tempfile.mkdtemp(prefix="ytt-asr-run-")
+    try:
+        if chosen == "mlx":
+            if not mlx_model_cached(model_ref):
+                log.info("  [asr] first use: mlx_whisper will download %s" % model_ref)
+            log.info("  [asr] transcribing with mlx-whisper (%s)…" % model_ref)
+            cmd = mlx_command(binary, model_ref, wav, tmpdir, lang)
+            label, json_path = "mlx_whisper", os.path.join(tmpdir, "out.json")
+            parse = parse_mlx_json
+        else:
+            out_prefix = os.path.join(tmpdir, "out")
+            log.info("  [asr] transcribing with whisper.cpp (%s)…" % os.path.basename(model_ref))
+            cmd = [binary, "-m", model_ref, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
+            if lang and lang != "auto":
+                cmd += ["-l", lang]
+            label, json_path = "whisper.cpp", out_prefix + ".json"
+            parse = parse_whisper_json
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise ASRUnavailable("%s failed: %s" % (label, proc.stderr.strip()[-300:]))
+        if not os.path.exists(json_path):
+            raise ASRUnavailable("%s wrote no JSON output" % label)
+        with open(json_path, encoding="utf-8") as fh:
+            return parse(json.load(fh))
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def transcribe_audio(
@@ -220,40 +300,39 @@ def transcribe_audio(
     binary_key = "mlx_whisper" if chosen == "mlx" else "whisper.cpp"
     missing = [k for k in ("yt-dlp", "ffmpeg", binary_key) if not backends[k]]
     if missing:
-        if chosen == "mlx":
-            hint = "  brew install yt-dlp ffmpeg\n  pipx install mlx-whisper"
-        else:
-            hint = ("  brew install yt-dlp ffmpeg whisper-cpp\n"
-                    "then download a model:\n  %s" % whisper_cpp_download_command(model))
-        raise ASRUnavailable("ASR fallback needs %s. Install with:\n%s"
-                             % (", ".join(missing), hint))
+        raise ASRUnavailable(
+            "ASR fallback needs %s. Install with:\n%s"
+            % (", ".join(missing), _missing_hint(chosen, model))
+        )
 
     # Resolve before downloading audio so a bad model fails fast.
-    if chosen == "mlx":
-        mlx_repo = resolve_mlx_model(model)
-    else:
-        whisper_bin = backends["whisper.cpp"]
-        model_path = resolve_model(model)
+    chosen, binary, model_ref = prepare_engine(model, chosen, backends)
     tmpdir = tempfile.mkdtemp(prefix="ytt-asr-")
     wav = os.path.join(tmpdir, "audio.wav")
-    out_prefix = os.path.join(tmpdir, "out")
     try:
         log.info("  [asr] downloading audio…")
         dl = subprocess.run(
             [
                 backends["yt-dlp"],
-                "-x", "--audio-format", "wav",
-                "--postprocessor-args", "-ar 16000 -ac 1",
-                "-o", os.path.join(tmpdir, "audio.%(ext)s"),
-                "--no-warnings", url,
+                "-x",
+                "--audio-format",
+                "wav",
+                "--postprocessor-args",
+                "-ar 16000 -ac 1",
+                "-o",
+                os.path.join(tmpdir, "audio.%(ext)s"),
+                "--no-warnings",
+                url,
             ],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if dl.returncode != 0:
             raise ASRUnavailable("audio download failed: %s" % dl.stderr.strip()[-300:])
 
         candidates = [
-            os.path.join(tmpdir, f) for f in os.listdir(tmpdir)
+            os.path.join(tmpdir, f)
+            for f in os.listdir(tmpdir)
             if f.startswith("audio.") and f.endswith(".wav")
         ]
         if not candidates:
@@ -261,27 +340,7 @@ def transcribe_audio(
         if candidates[0] != wav:
             os.rename(candidates[0], wav)
 
-        if chosen == "mlx":
-            if not mlx_model_cached(mlx_repo):
-                log.info("  [asr] first use: mlx_whisper will download %s" % mlx_repo)
-            log.info("  [asr] transcribing with mlx-whisper (%s)…" % mlx_repo)
-            cmd = mlx_command(backends["mlx_whisper"], mlx_repo, wav, tmpdir, lang)
-            label, json_path = "mlx_whisper", os.path.join(tmpdir, "out.json")
-            parse = parse_mlx_json
-        else:
-            log.info("  [asr] transcribing with whisper.cpp (%s)…" % model)
-            cmd = [whisper_bin, "-m", model_path, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
-            if lang and lang != "auto":
-                cmd += ["-l", lang]
-            label, json_path = "whisper.cpp", out_prefix + ".json"
-            parse = parse_whisper_json
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise ASRUnavailable("%s failed: %s" % (label, proc.stderr.strip()[-300:]))
-        if not os.path.exists(json_path):
-            raise ASRUnavailable("%s wrote no JSON output" % label)
-        with open(json_path, "r", encoding="utf-8") as fh:
-            return parse(json.load(fh))
+        return transcribe_wav(wav, chosen, binary, model_ref, log, lang)
     finally:
         if keep_audio and os.path.exists(wav):
             shutil.copy(wav, keep_audio)

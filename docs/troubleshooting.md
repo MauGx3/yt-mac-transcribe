@@ -193,14 +193,18 @@ causes:
   `--rewrite-timeout 1800`, placed *before* `--rewrite-command`.
 - **Options in the wrong place:** everything after `--rewrite-command` is sent
   to the model runner. Put `-f`, `-o` and other `ytt` options before it.
-- **`mlx_lm` not installed:** the bundled runner needs it. Run
-  `python3 -m pip install mlx-lm`, using the same `python3` you pass to
-  `--rewrite-command`.
+- **`No module named 'mlx_lm'`:** the bundled runner needs MLX-LM installed
+  for the Python you pass to `--rewrite-command`. `pipx install mlx-lm` doesn't
+  do that. Follow the
+  [AI setup](ai-features.md#set-up-the-ai-model-once) and pass
+  `~/.venvs/ytt-ai/bin/python`.
 - **Wrong number of segments:** the model returned more or fewer lines than it
   was given. The bundled runner retries. Add `--keep-original-on-failure` after
   the runner's path to keep the original text for chunks that still fail.
 
-See [local-rewriting.md](local-rewriting.md#failure-behavior) for the details.
+See the [AI features guide](ai-features.md#problems) for more, and
+[local-rewriting.md](local-rewriting.md#failure-behavior) for the technical
+details.
 
 ## Only part of a batch or playlist worked
 
@@ -215,7 +219,9 @@ links that didn't work and exits with code `3`. Re-run just those links. If most
 - **Can't find `yt-dlp` or `mlx_whisper`:** the app searches the Homebrew
   folders and `~/.local/bin`. Check in Terminal that `which yt-dlp` prints a path
   in one of those places.
-- **"Review" option is greyed out:** set a local rewrite command in Settings.
+- **The enhanced copy option is greyed out:** fill in **Local rewrite command**
+  in Settings. Use full paths, as shown in the
+  [AI features guide](ai-features.md#in-the-mac-app).
 - **macOS won't open the app:** it isn't signed yet. Go to
   **System Settings → Privacy & Security** and click **Open Anyway**.
 - **An error appears in the status area:** it's the message from `ytt`. Look it
