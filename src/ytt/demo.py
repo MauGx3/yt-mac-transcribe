@@ -251,7 +251,8 @@ def asr_candidates(
                     if not asr_mod.mlx_model_cached(repo):
                         row.update(
                             status="not_downloaded",
-                            reason="not downloaded: ytt --engine mlx --download-model -m %s" % model,
+                            reason="not downloaded: ytt --engine mlx --download-model -m %s"
+                            % model,
                         )
             else:
                 try:
@@ -499,13 +500,18 @@ def render_text(report: Dict[str, Any]) -> str:
                 % (r["engine"], r["model"], r["seconds"], r["realtime_x"] or 0, _pct(r["wer"]))
             )
         else:
-            lines.append("  %-12s %-16s %s" % (r["engine"], r["model"], r.get("reason", r["status"])))
+            lines.append(
+                "  %-12s %-16s %s" % (r["engine"], r["model"], r.get("reason", r["status"]))
+            )
     if not report.get("asr"):
         lines.append("  (skipped)")
     lines += [
         "",
         "LLM cleanup (errors left: words / words+punctuation; garbled input starts at %s / %s)"
-        % (_pct(wer(sample_text(), " ".join(NOISY_SEGMENTS))), _pct(wer(sample_text(), " ".join(NOISY_SEGMENTS), True))),
+        % (
+            _pct(wer(sample_text(), " ".join(NOISY_SEGMENTS))),
+            _pct(wer(sample_text(), " ".join(NOISY_SEGMENTS), True)),
+        ),
         "  %-46s %8s %7s %7s" % ("model", "time", "words", "strict"),
     ]
     for r in report.get("llm") or []:
@@ -536,7 +542,11 @@ def _ask(prompt: str, options: List[str], default: str) -> str:
         mark = "  (recommended)" if opt == default else ""
         print("  %d) %s%s" % (i, opt, mark), file=sys.stderr)
     while True:
-        print("Choose 1-%d, Enter for recommended, s to skip: " % len(options), end="", file=sys.stderr)
+        print(
+            "Choose 1-%d, Enter for recommended, s to skip: " % len(options),
+            end="",
+            file=sys.stderr,
+        )
         sys.stderr.flush()
         answer = sys.stdin.readline().strip().lower()
         if not answer:
@@ -549,7 +559,9 @@ def _ask(prompt: str, options: List[str], default: str) -> str:
 
 def pick_interactively(report: Dict[str, Any]) -> Dict[str, str]:
     rec = report["recommendation"]
-    asr_opts = ["%s %s" % (r["engine"], r["model"]) for r in report.get("asr") or [] if r["status"] == "ok"]
+    asr_opts = [
+        "%s %s" % (r["engine"], r["model"]) for r in report.get("asr") or [] if r["status"] == "ok"
+    ]
     asr_default = "%s %s" % (rec["asr"]["engine"], rec["asr"]["model"])
     if asr_default not in asr_opts:
         asr_opts.insert(0, asr_default)
@@ -616,9 +628,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=900, help="seconds per LLM model (default: 900)")
     p.add_argument("--json", action="store_true", help="print the report as JSON on stdout")
     p.add_argument("--report", metavar="FILE", help="also write the JSON report to FILE")
-    p.add_argument(
-        "--save", action="store_true", help="save the recommended models without asking"
-    )
+    p.add_argument("--save", action="store_true", help="save the recommended models without asking")
     p.add_argument("--no-pick", action="store_true", help="do not ask which models to use")
     p.add_argument("--keep-audio", metavar="FILE", help="copy the sample wav to FILE")
     p.add_argument("-q", "--quiet", action="store_true", help="suppress progress output")
@@ -738,5 +748,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif not printed:
         print(render_text(report))
     if chosen and not args.json:
-        log.info("\nSaved to %s: %s" % (report["saved_to"], ", ".join("%s=%s" % kv for kv in chosen.items())))
+        log.info(
+            "\nSaved to %s: %s"
+            % (report["saved_to"], ", ".join("%s=%s" % kv for kv in chosen.items()))
+        )
     return 0
