@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Runs `ytt demo` on a copyright-free sample and lets the user pick models.
 struct BenchmarkView: View {
-    @ObservedObject var model: TranscriptionViewModel
+    let model: TranscriptionViewModel
     @State private var report: BenchmarkReport?
     @State private var running = false
     @State private var download = false
