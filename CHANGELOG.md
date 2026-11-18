@@ -21,6 +21,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   final `<name>.reviewed.txt`. The AI output is now called "Enhanced".
 - macOS Library: enhanced transcripts show "Needs review" or "Reviewed", with
   buttons to reopen the review screen and the Reviewed copy.
+- "Unclear audio" labels from real data: whisper.cpp (`-ojf`) and mlx-whisper
+  (`--word-timestamps True`) word confidence is kept as `conf` in JSON output,
+  and the review file marks words under 0.5, both those the AI changed and those
+  it left alone.
 
 ### Changed
 

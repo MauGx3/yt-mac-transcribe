@@ -35,6 +35,18 @@ struct ReviewDocument: Codable, Equatable {
         var isFlagged: Bool { isAIUnsure || isUnclearAudio }
     }
 
+    /// An unsure span. `ai_unsure` spans are character offsets in the
+    /// enhanced text; `unclear_audio` spans are in the original text and
+    /// also carry the word, its score, and whether a change covers it.
+    struct Span: Codable, Equatable {
+        let start: Int
+        let end: Int
+        let kind: String
+        var text: String? = nil
+        var score: Double? = nil
+        var changed: Bool? = nil
+    }
+
     struct Segment: Codable, Equatable, Identifiable {
         let index: Int
         let startMs: Int
@@ -42,16 +54,22 @@ struct ReviewDocument: Codable, Equatable {
         let original: String
         let enhanced: String
         let hunks: [Hunk]
+        var flags: [Span]? = nil
 
         enum CodingKeys: String, CodingKey {
-            case index, original, enhanced, hunks
+            case index, original, enhanced, hunks, flags
             case startMs = "start_ms"
             case endMs = "end_ms"
         }
 
         var id: Int { index }
         var isChanged: Bool { !hunks.isEmpty }
-        var isFlagged: Bool { hunks.contains(where: \.isFlagged) }
+        /// Words the speech recognition was unsure of that no change touches:
+        /// the rewrite kept them, so they may still be wrong.
+        var unclearKept: [Span] {
+            (flags ?? []).filter { $0.kind == ReviewFlag.unclearAudio.rawValue && $0.changed != true }
+        }
+        var isFlagged: Bool { hunks.contains(where: \.isFlagged) || !unclearKept.isEmpty }
     }
 
     let version: Int

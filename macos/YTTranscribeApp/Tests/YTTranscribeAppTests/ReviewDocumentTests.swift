@@ -83,4 +83,30 @@ final class ReviewDocumentTests: XCTestCase {
         let older = try TranscriptionRunner.files(from: [original, enhanced], mode: .review)
         XCTAssertNil(older.review)
     }
+
+    /// Written by `ytt.review.build_review` with speech recognition scores.
+    private let audioFixture = #"""
+    {"version": 1, "video_id": "v", "title": "Audio", "url": "u", "original_engine": "asr", "stats": {"segments": 2, "changed": 1, "flagged": 2, "unclear_words": 2, "has_confidence": true, "has_ai_confidence": false, "has_audio_confidence": true}, "segments": [{"index": 0, "start_ms": 0, "end_ms": 900, "original": "the whether is nice", "enhanced": "the weather is nice", "hunks": [{"op": "replace", "orig": [1, 2], "new": [1, 2], "orig_text": "whether", "new_text": "weather", "flags": ["unclear_audio"]}], "flags": [{"start": 4, "end": 11, "kind": "unclear_audio", "word": 1, "text": "whether", "score": 0.2, "changed": true}]}, {"index": 1, "start_ms": 1000, "end_ms": 1900, "original": "we met at noon", "enhanced": "we met at noon", "hunks": [], "flags": [{"start": 10, "end": 14, "kind": "unclear_audio", "word": 3, "text": "noon", "score": 0.1, "changed": false}]}]}
+    """#
+
+    func testUnclearAudioOnChangesAndOnKeptWords() throws {
+        let doc = try JSONDecoder().decode(ReviewDocument.self, from: Data(audioFixture.utf8))
+        XCTAssertTrue(doc.stats.hasConfidence)
+        let changed = doc.segments[0]
+        XCTAssertTrue(changed.hunks[0].isUnclearAudio)
+        XCTAssertFalse(changed.hunks[0].isAIUnsure)
+        XCTAssertTrue(changed.unclearKept.isEmpty)
+        XCTAssertTrue(changed.isFlagged)
+        let kept = doc.segments[1]
+        XCTAssertFalse(kept.isChanged)
+        XCTAssertEqual(kept.unclearKept.map(\.text), ["noon"])
+        XCTAssertTrue(kept.isFlagged)
+        XCTAssertEqual(ReviewDecisions().reviewedText(for: doc), "the weather is nice\nwe met at noon\n")
+    }
+
+    func testOlderReviewFilesWithoutSpanDetailsStillDecode() throws {
+        let doc = try document()
+        XCTAssertNil(doc.segments[0].flags?.first?.changed)
+        XCTAssertTrue(doc.segments[0].unclearKept.isEmpty)
+    }
 }

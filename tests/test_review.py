@@ -88,7 +88,9 @@ class TestBuildReview(unittest.TestCase):
         ]})
         review = build_review(original, enhanced)
         self.assertEqual(review["stats"], {
-            "segments": 2, "changed": 2, "flagged": 1, "has_confidence": True})
+            "segments": 2, "changed": 2, "flagged": 1, "unclear_words": 0,
+            "has_confidence": True, "has_ai_confidence": True,
+            "has_audio_confidence": False})
         self.assertEqual(review["segments"][0]["hunks"][0]["flags"], [AI_UNSURE])
         self.assertEqual(review["segments"][1]["hunks"][0]["flags"], [])
         json.dumps(review)  # must be serialisable

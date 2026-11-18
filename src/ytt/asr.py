@@ -200,7 +200,8 @@ def asr_ready(engine: str = "auto") -> bool:
 
 def mlx_command(binary: str, repo: str, wav: str, outdir: str, lang: str) -> List[str]:
     cmd = [binary, wav, "--model", repo, "-f", "json", "-o", outdir,
-           "--output-name", "out", "--verbose", "False"]
+           "--output-name", "out", "--verbose", "False",
+           "--word-timestamps", "True"]  # per-word probability for the review screen
     if lang and lang != "auto":
         cmd += ["--language", lang]
     return cmd
@@ -270,7 +271,7 @@ def transcribe_audio(
             parse = parse_mlx_json
         else:
             log.info("  [asr] transcribing with whisper.cpp (%s)…" % model)
-            cmd = [whisper_bin, "-m", model_path, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
+            cmd = [whisper_bin, "-m", model_path, "-f", wav, "-ojf", "-of", out_prefix, "-pp"]
             if lang and lang != "auto":
                 cmd += ["-l", lang]
             label, json_path = "whisper.cpp", out_prefix + ".json"

@@ -94,7 +94,16 @@ Requests now carry `"protocol": 2`. A runner may add an optional `uncertain` lis
  "uncertain": [{"start": 0, "end": 7, "score": 0.41, "reason": "low token probability"}]}
 ```
 
-`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no uncertainty markers, and `stats.has_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. The bundled `tools/rewrite_with_local_model.py` fills `uncertain` from the model's token probabilities: a word the model changed is reported when its lowest token probability is under `--unsure-below` (default 0.5, `0` turns it off). Unchanged words are never reported. These are hints about where to look, not a judgement that the text is wrong.
+`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no "AI unsure" markers, and `stats.has_ai_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. The bundled `tools/rewrite_with_local_model.py` fills `uncertain` from the model's token probabilities: a word the model changed is reported when its lowest token probability is under `--unsure-below` (default 0.5, `0` turns it off). Unchanged words are never reported. These are hints about where to look, not a judgement that the text is wrong.
+
+### Unclear audio
+
+When the transcript came from local speech recognition, `ytt` also keeps how sure the recogniser was of each word: whisper.cpp runs with `-ojf` (per-token probability) and mlx-whisper with `--word-timestamps True` (per-word probability). These scores also appear as `conf` on each word in `-f json` output. A word scored under 0.5 is added to its segment's `flags` with `"kind": "unclear_audio"`, the word itself, its `score`, and `changed`:
+
+- `changed: true`: the rewrite edited that word, and the change carries the `unclear_audio` flag. The AI may have guessed at a word nobody could hear well.
+- `changed: false`: the rewrite left the word alone. It may still be misheard, so the review screen lists it under the segment.
+
+A change can carry both `ai_unsure` and `unclear_audio`. `stats.unclear_words` counts the unclear words, `stats.has_audio_confidence` says whether scores were available, and `stats.has_confidence` is `true` when either kind was. YouTube captions carry no scores, so transcripts made from captions never show "Unclear audio".
 
 ## Building a local runner
 

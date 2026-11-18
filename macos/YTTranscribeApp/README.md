@@ -3,7 +3,7 @@
 A lightweight SwiftUI wrapper around the existing `ytt` command and a small transcript manager.
 
 - **Transcribe tab:** a single video, a whole playlist (`ytt --playlist`), or a batch of URLs (one per line). Pick one or more output formats (txt, srt, vtt, json, md). For a single video the app then asks whether to create an enhanced copy with a configured local model command; playlist and batch runs skip this step.
-- **Review screen:** after an enhancement, the app opens a diff of every change. Each change has Accept and Reject. Spots the model was unsure of are labelled **AI unsure**, and spots where the speech recognition was unsure are labelled **Unclear audio**. **Save Reviewed** writes `<name>.reviewed.txt`; the original and enhanced files are left as they are.
+- **Review screen:** after an enhancement, the app opens a diff of every change. Each change has Accept and Reject. Spots the model was unsure of are labelled **AI unsure**, and spots where the speech recognition was unsure are labelled **Unclear audio**. Unclear words the AI left unchanged are listed under their segment, since they may still be misheard. Unclear audio needs a local transcription (whisper.cpp or mlx-whisper); YouTube captions carry no scores. **Save Reviewed** writes `<name>.reviewed.txt`; the original and enhanced files are left as they are.
 - **Review status in the Library:** enhanced transcripts show **Needs review** until you save a Reviewed copy, then **Reviewed**. **Review Changes** reopens the diff at any time.
 - **Library tab:** every transcript is remembered (`~/Library/Application Support/YTTranscribe/library.json`). Search by title, URL, or the transcript text itself; open, reveal, or remove entries. Removing an entry never deletes the transcript files.
 

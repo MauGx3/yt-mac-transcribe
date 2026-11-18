@@ -31,7 +31,7 @@ final class ReviewViewModel: ObservableObject, Identifiable {
     }
 
     var visibleSegments: [ReviewDocument.Segment] {
-        document.segments.filter { filter == .flagged ? $0.isFlagged : $0.isChanged }
+        document.segments.filter { filter == .flagged ? $0.isFlagged : ($0.isChanged || $0.isFlagged) }
     }
 
     var rejectedCount: Int { decisions.rejected.count }
@@ -154,6 +154,14 @@ private struct SegmentReviewRow: View {
             Text(timestamp).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             ForEach(Array(segment.hunks.enumerated()), id: \.offset) { index, hunk in
                 HunkRow(hunk: hunk, accepted: model.binding(for: HunkID(segment: segment.index, hunk: index)))
+            }
+            if !segment.unclearKept.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    FlagBadge(flag: .unclearAudio)
+                    Text("Unchanged, check against the audio: " + segment.unclearKept.compactMap(\.text).joined(separator: ", "))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
             Text(model.decisions.text(for: segment))
                 .font(.callout)
