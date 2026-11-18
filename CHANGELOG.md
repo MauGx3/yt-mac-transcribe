@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Review file: a rewrite now also writes `<name>.review.json` with a word-level
   diff of original vs enhanced text, and rewrite protocol v2 lets a runner report
   uncertain spans per segment. Groundwork for the app's diff review screen.
+- `tools/rewrite_with_local_model.py` reports changed words the model was unsure
+  about (`--unsure-below`, default 0.5) from MLX-LM token probabilities.
 
 ## [0.1.0] - 2026-11-03
 

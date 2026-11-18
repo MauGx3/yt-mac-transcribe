@@ -94,7 +94,7 @@ Requests now carry `"protocol": 2`. A runner may add an optional `uncertain` lis
  "uncertain": [{"start": 0, "end": 7, "score": 0.41, "reason": "low token probability"}]}
 ```
 
-`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no uncertainty markers, and `stats.has_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. These are hints about where to look, not a judgement that the text is wrong.
+`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no uncertainty markers, and `stats.has_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. The bundled `tools/rewrite_with_local_model.py` fills `uncertain` from the model's token probabilities: a word the model changed is reported when its lowest token probability is under `--unsure-below` (default 0.5, `0` turns it off). Unchanged words are never reported. These are hints about where to look, not a judgement that the text is wrong.
 
 ## Building a local runner
 

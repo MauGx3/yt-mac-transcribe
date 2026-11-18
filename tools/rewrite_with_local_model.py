@@ -18,10 +18,16 @@ chunk is retried; if it still fails, the runner exits non-zero so ytt keeps
 only the original transcript (or, with --keep-original-on-failure, that chunk
 keeps its original wording).
 
+When the model can score its output, each changed word whose lowest token
+probability is under --unsure-below is reported in an optional ``uncertain``
+list on its segment (protocol v2), which ytt turns into "AI unsure" marks.
+
 Diagnostics go to stderr. stdout carries only the response JSON.
 """
 import argparse
+import difflib
 import json
+import math
 import re
 import sys
 
@@ -29,6 +35,7 @@ DEFAULT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 DEFAULT_CHUNK_SIZE = 40
 DEFAULT_CONTEXT = 3
 DEFAULT_RETRIES = 1
+DEFAULT_UNSURE_BELOW = 0.5
 
 SYSTEM_PROMPT = (
     "You clean up speech transcripts. You fix misheard words, homophones, "
@@ -119,19 +126,83 @@ def parse_response(text, expected):
     raise RewriteError("model output did not contain a JSON array of strings")
 
 
+class ScoredText(str):
+    """Model output plus, optionally, the probability of each output character.
+
+    ``char_probs[i]`` is the probability the model gave the token that
+    produced character ``i``. Models that cannot score output return plain
+    ``str``, and the rewrite then simply reports no uncertain spans.
+    """
+
+    def __new__(cls, text, char_probs=None):
+        obj = super().__new__(cls, text)
+        obj.char_probs = char_probs
+        return obj
+
+
+def locate_items(raw, items):
+    """Start offset of each item's text inside the raw model output.
+
+    Items are searched in order, as JSON-escaped text, after any ``</think>``
+    block. An item that cannot be found gets ``None`` and no uncertainty.
+    """
+    cursor = raw.rfind("</think>")
+    cursor = 0 if cursor < 0 else cursor + len("</think>")
+    offsets = []
+    for item in items:
+        needle = json.dumps(item, ensure_ascii=False)[1:-1]
+        at = raw.find(needle, cursor) if item else -1
+        if at >= 0:
+            cursor = at + len(needle)
+            # JSON escapes shift character positions; only plain text maps 1:1.
+            offsets.append(at if needle == item else None)
+        else:
+            offsets.append(None)
+    return offsets
+
+
+def unsure_spans(original, text, probs, threshold):
+    """Character spans of ``text`` the model was unsure about.
+
+    Only words the model changed count: unchanged words were not its
+    decision. ``probs`` holds one probability per character of ``text``.
+    """
+    if not probs or threshold <= 0 or not text:
+        return []
+    old = original.split()
+    words = [(m.group(), m.start(), m.end()) for m in re.finditer(r"\S+", text)]
+    changed = set()
+    matcher = difflib.SequenceMatcher(
+        a=old, b=[w[0] for w in words], autojunk=False)
+    for op, _, _, j1, j2 in matcher.get_opcodes():
+        if op != "equal":
+            changed.update(range(j1, j2))
+    spans = []
+    for i, (_, start, end) in enumerate(words):
+        if i not in changed:
+            continue
+        low = min(probs[start:end], default=1.0)
+        if low < threshold:
+            spans.append({
+                "start": start, "end": end, "score": round(low, 3),
+                "reason": "low token probability",
+            })
+    return spans
+
+
 class MLXModel:
     """Thin wrapper around mlx_lm so tests can swap in a fake model."""
 
     def __init__(self, name, max_tokens=None):
         try:
-            from mlx_lm import generate, load
+            from mlx_lm import load, stream_generate
         except ImportError:
             raise SystemExit(
                 "rewrite_with_local_model: mlx-lm is not installed. Install it "
                 "on an Apple silicon Mac with: python3 -m pip install mlx-lm"
             )
         log("loading %s" % name)
-        self._generate = generate
+        self._stream_generate = stream_generate
         self._model, self._tokenizer = load(name)
         self._max_tokens = max_tokens
 
@@ -143,13 +214,20 @@ class MLXModel:
         prompt = self._tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, enable_thinking=False
         )
-        return self._generate(
+        pieces, probs = [], []
+        for step in self._stream_generate(
             self._model,
             self._tokenizer,
-            prompt=prompt,
+            prompt,
             max_tokens=self._max_tokens or budget,
-            verbose=False,
-        )
+        ):
+            pieces.append(step.text)
+            try:
+                p = math.exp(float(step.logprobs[step.token]))
+            except Exception:  # scoring is advisory; never fail the rewrite
+                p = 1.0
+            probs.extend([p] * len(step.text))
+        return ScoredText("".join(pieces), probs)
 
 
 def token_budget(lines):
@@ -158,8 +236,24 @@ def token_budget(lines):
     return chars // 2 + 16 * len(lines) + 256
 
 
+def chunk_items(raw, lines, items, threshold):
+    """Response items for one chunk, with ``uncertain`` spans where scored."""
+    probs = getattr(raw, "char_probs", None)
+    offsets = locate_items(raw, items) if probs else [None] * len(items)
+    out = []
+    for line, text, at in zip(lines, items, offsets):
+        item = {"text": text}
+        if at is not None:
+            spans = unsure_spans(line, text, probs[at:at + len(text)], threshold)
+            if spans:
+                item["uncertain"] = spans
+        out.append(item)
+    return out
+
+
 def rewrite(request, model, chunk_size=DEFAULT_CHUNK_SIZE, context=DEFAULT_CONTEXT,
-            retries=DEFAULT_RETRIES, keep_original_on_failure=False):
+            retries=DEFAULT_RETRIES, keep_original_on_failure=False,
+            unsure_below=DEFAULT_UNSURE_BELOW):
     """Return the response payload for a ytt rewrite request."""
     segments = request.get("segments")
     if not isinstance(segments, list):
@@ -173,7 +267,8 @@ def rewrite(request, model, chunk_size=DEFAULT_CHUNK_SIZE, context=DEFAULT_CONTE
         for attempt in range(retries + 1):
             try:
                 raw = model.complete(SYSTEM_PROMPT, prompt, token_budget(lines))
-                out.extend(parse_response(raw, len(lines)))
+                items = parse_response(raw, len(lines))
+                out.extend(chunk_items(raw, lines, items, unsure_below))
                 last_error = None
                 break
             except RewriteError as exc:
@@ -184,10 +279,10 @@ def rewrite(request, model, chunk_size=DEFAULT_CHUNK_SIZE, context=DEFAULT_CONTE
             if not keep_original_on_failure:
                 raise last_error
             log("chunk %d/%d keeps its original text" % (n, len(ranges)))
-            out.extend(lines)
+            out.extend({"text": line} for line in lines)
         else:
             log("chunk %d/%d done" % (n, len(ranges)))
-    return {"segments": [{"text": text} for text in out]}
+    return {"segments": out}
 
 
 def parse_args(argv):
@@ -213,6 +308,11 @@ def parse_args(argv):
     parser.add_argument(
         "--max-tokens", type=int, default=None,
         help="fixed generation limit per chunk (default: estimated from the chunk)",
+    )
+    parser.add_argument(
+        "--unsure-below", type=float, default=DEFAULT_UNSURE_BELOW,
+        help="report a changed word as uncertain when its lowest token "
+             "probability is under this value; 0 turns it off (default: %(default)s)",
     )
     parser.add_argument(
         "--keep-original-on-failure", action="store_true",
@@ -244,6 +344,7 @@ def main(argv=None, model_factory=MLXModel):
             context=args.context,
             retries=max(0, args.retries),
             keep_original_on_failure=args.keep_original_on_failure,
+            unsure_below=args.unsure_below,
         )
     except RewriteError as exc:
         log("rewrite failed: %s" % exc)

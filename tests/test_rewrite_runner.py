@@ -75,6 +75,54 @@ class TestRewrite(unittest.TestCase):
         self.assertEqual(out["segments"], [{"text": "a"}])
 
 
+def scored(text, low_word=None, low=0.2):
+    """ScoredText where every char has p=0.99, except those of ``low_word``."""
+    probs = [0.99] * len(text)
+    if low_word:
+        at = text.index(low_word)
+        for i in range(at, at + len(low_word)):
+            probs[i] = low
+    return runner.ScoredText(text, probs)
+
+
+class TestUncertainSpans(unittest.TestCase):
+    def test_low_probability_changed_word_is_reported(self):
+        model = FakeModel([scored('["They are going home"]', low_word="They")])
+        out = runner.rewrite(make_request(["their going home"]), model)
+        item = out["segments"][0]
+        self.assertEqual(item["text"], "They are going home")
+        self.assertEqual(item["uncertain"], [{
+            "start": 0, "end": 4, "score": 0.2, "reason": "low token probability"}])
+
+    def test_unchanged_low_probability_word_is_not_reported(self):
+        model = FakeModel([scored('["their going home"]', low_word="going")])
+        out = runner.rewrite(make_request(["their going home"]), model)
+        self.assertEqual(out["segments"], [{"text": "their going home"}])
+
+    def test_confident_edit_and_threshold_zero_report_nothing(self):
+        model = FakeModel([scored('["They are going"]')])
+        out = runner.rewrite(make_request(["their going"]), model)
+        self.assertEqual(out["segments"], [{"text": "They are going"}])
+        model = FakeModel([scored('["They are going"]', low_word="They")])
+        out = runner.rewrite(make_request(["their going"]), model, unsure_below=0)
+        self.assertEqual(out["segments"], [{"text": "They are going"}])
+
+    def test_spans_map_to_the_right_segment_in_a_chunk(self):
+        model = FakeModel([scored('["a b", "Their is late"]', low_word="Their")])
+        out = runner.rewrite(make_request(["a b", "there is late"]), model)
+        self.assertNotIn("uncertain", out["segments"][0])
+        self.assertEqual(out["segments"][1]["uncertain"][0]["start"], 0)
+
+    def test_escaped_text_skips_scoring_instead_of_misaligning(self):
+        model = FakeModel([scored('["say \\"hi\\" now"]', low_word="hi")])
+        out = runner.rewrite(make_request(["say hi now"]), model)
+        self.assertNotIn("uncertain", out["segments"][0])
+
+    def test_plain_string_models_still_work(self):
+        out = runner.rewrite(make_request(["a"]), FakeModel(['["A"]']))
+        self.assertEqual(out["segments"], [{"text": "A"}])
+
+
 class TestMain(unittest.TestCase):
     def run_main(self, request, replies, argv=()):
         stdout = io.StringIO()
