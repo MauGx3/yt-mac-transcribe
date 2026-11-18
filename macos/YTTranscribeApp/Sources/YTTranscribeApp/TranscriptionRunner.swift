@@ -8,6 +8,8 @@ enum TranscriptionMode {
 struct TranscriptFiles: Equatable {
     let original: URL
     var reviewed: URL?
+    /// Originals in the other requested formats.
+    var extras: [URL] = []
 }
 
 enum TranscriptionRunnerError: LocalizedError {
@@ -33,6 +35,8 @@ enum TranscriptionRunnerError: LocalizedError {
 protocol TranscriptionRunning {
     func transcribe(url: String, settings: AppSettings) async throws -> TranscriptFiles
     func review(url: String, settings: AppSettings) async throws -> TranscriptFiles
+    /// Batch or playlist run. Returns one entry per video that produced output.
+    func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles]
 }
 
 struct TranscriptionRunner: TranscriptionRunning {
@@ -62,29 +66,54 @@ struct TranscriptionRunner: TranscriptionRunning {
         }
     }
 
-    static func files(from paths: [URL], mode: TranscriptionMode) throws -> TranscriptFiles {
+    /// `ytt` prints every original (one per format) and then, with a rewrite
+    /// command, every reviewed copy. `formatCount` splits the two groups.
+    static func files(from paths: [URL], mode: TranscriptionMode, formatCount: Int = 1) throws -> TranscriptFiles {
         guard let original = paths.first else { throw TranscriptionRunnerError.missingOutput }
+        let count = max(1, formatCount)
+        let extras = Array(paths.dropFirst().prefix(count - 1))
         let reviewed: URL?
         if case .review = mode {
-            guard paths.count > 1 else { throw TranscriptionRunnerError.missingOutput }
-            reviewed = paths[1]
+            guard paths.count > count else { throw TranscriptionRunnerError.missingOutput }
+            reviewed = paths[count]
         } else {
             reviewed = nil
         }
-        return TranscriptFiles(original: original, reviewed: reviewed)
+        return TranscriptFiles(original: original, reviewed: reviewed, extras: extras)
+    }
+
+    /// Batch and playlist runs print `formatCount` paths per successful video.
+    static func groups(from paths: [URL], formatCount: Int) -> [TranscriptFiles] {
+        let count = max(1, formatCount)
+        return stride(from: 0, to: paths.count, by: count).map { start in
+            let chunk = Array(paths[start..<min(start + count, paths.count)])
+            return TranscriptFiles(original: chunk[0], extras: Array(chunk.dropFirst()))
+        }
     }
 
     static func arguments(for mode: TranscriptionMode, url: String, settings: AppSettings) -> [String] {
-        var args = [url, "-f", "txt", "-o", settings.outputDirectory.path]
+        var args = [url, "-f"] + settings.effectiveFormats.map(\.rawValue)
+            + ["-o", settings.outputDirectory.path] + asrArguments(settings)
         if case .review = mode {
             args += ["--rewrite-command"] + settings.rewriteCommand
         }
         return args
     }
 
+    /// Reviewed copies are not produced for batch runs, so no rewrite flags.
+    static func batchArguments(urls: [String], playlist: Bool, settings: AppSettings) -> [String] {
+        (playlist ? ["--playlist"] : []) + urls
+            + ["-f"] + settings.effectiveFormats.map(\.rawValue) + ["-o", settings.outputDirectory.path]
+            + asrArguments(settings)
+    }
+
+    /// Speech engine and model, used when a video has no usable captions.
+    static func asrArguments(_ settings: AppSettings) -> [String] {
+        ["--engine", settings.engine.rawValue, "--model", settings.model]
+    }
+
     func transcribe(url: String, settings: AppSettings) async throws -> TranscriptFiles {
-        let output = try await run(.transcribe, url: url, settings: settings)
-        return TranscriptFiles(original: output.original, reviewed: nil)
+        try await run(.transcribe, url: url, settings: settings)
     }
 
     func review(url: String, settings: AppSettings) async throws -> TranscriptFiles {
@@ -95,17 +124,31 @@ struct TranscriptionRunner: TranscriptionRunning {
         guard let reviewed = output.reviewed else {
             throw TranscriptionRunnerError.missingOutput
         }
-        return TranscriptFiles(original: output.original, reviewed: reviewed)
+        return TranscriptFiles(original: output.original, reviewed: reviewed, extras: output.extras)
+    }
+
+    func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles] {
+        guard !urls.isEmpty else { throw TranscriptionRunnerError.missingOutput }
+        let paths = try await outputPaths(
+            arguments: Self.batchArguments(urls: urls, playlist: playlist, settings: settings),
+            settings: settings
+        )
+        let groups = Self.groups(from: paths, formatCount: settings.effectiveFormats.count)
+        guard !groups.isEmpty else { throw TranscriptionRunnerError.missingOutput }
+        return groups
     }
 
     private func run(_ mode: TranscriptionMode, url: String, settings: AppSettings) async throws -> TranscriptFiles {
+        let paths = try await outputPaths(arguments: Self.arguments(for: mode, url: url, settings: settings), settings: settings)
+        return try Self.files(from: paths, mode: mode, formatCount: settings.effectiveFormats.count)
+    }
+
+    /// Runs `ytt` and returns the existing files it printed on stdout.
+    private func outputPaths(arguments: [String], settings: AppSettings) async throws -> [URL] {
         try FileManager.default.createDirectory(at: settings.outputDirectory, withIntermediateDirectories: true)
         let result: ProcessResult
         do {
-            result = try await Self.execute(
-                executable: settings.yttExecutable,
-                arguments: Self.arguments(for: mode, url: url, settings: settings)
-            )
+            result = try await Self.execute(executable: settings.yttExecutable, arguments: arguments)
             try Task.checkCancellation()
         } catch is CancellationError {
             throw TranscriptionRunnerError.cancelled
@@ -113,11 +156,10 @@ struct TranscriptionRunner: TranscriptionRunning {
         guard result.status == 0 else {
             throw TranscriptionRunnerError.commandFailed(status: result.status, detail: result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        let paths = result.stdout
+        return result.stdout
             .split(whereSeparator: \.isNewline)
             .map { URL(fileURLWithPath: String($0).trimmingCharacters(in: .whitespacesAndNewlines)) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
-        return try Self.files(from: paths, mode: mode)
     }
 
     /// Drains a pipe on a background queue while the child runs.

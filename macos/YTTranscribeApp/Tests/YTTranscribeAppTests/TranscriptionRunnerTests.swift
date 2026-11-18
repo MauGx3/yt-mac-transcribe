@@ -7,8 +7,16 @@ final class TranscriptionRunnerTests: XCTestCase {
         let url = "https://example.invalid/video title?x=$(touch sentinel)"
         let settings = AppSettings(yttExecutable: URL(fileURLWithPath: "/usr/bin/true"), rewriteCommand: [], outputDirectory: URL(fileURLWithPath: "/tmp/out"))
         let args = TranscriptionRunner.arguments(for: .transcribe, url: url, settings: settings)
-        XCTAssertEqual(args, [url, "-f", "txt", "-o", "/tmp/out"])
+        XCTAssertEqual(args, [url, "-f", "txt", "-o", "/tmp/out", "--engine", "auto", "--model", "small.en"])
         XCTAssertEqual(args.first, url)
+    }
+
+    func testEngineAndModelArePassedToYtt() {
+        var settings = AppSettings(yttExecutable: URL(fileURLWithPath: "/usr/bin/true"), rewriteCommand: [], outputDirectory: URL(fileURLWithPath: "/tmp/out"))
+        settings.engine = .mlx
+        settings.model = "large-v3-turbo"
+        let args = TranscriptionRunner.arguments(for: .transcribe, url: "https://example.invalid/v", settings: settings)
+        XCTAssertEqual(Array(args.suffix(4)), ["--engine", "mlx", "--model", "large-v3-turbo"])
     }
 
     func testReviewAddsRewriteArgumentsAsSeparateTokens() {
