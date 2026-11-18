@@ -83,6 +83,19 @@ The response must contain exactly one item for every input segment, in the same 
 
 A runner should preserve meaning and avoid adding information that is not supported by the transcript. It should correct wording and punctuation while keeping each segment concise enough for its existing subtitle timing.
 
+## Review file and uncertainty (protocol v2)
+
+Every successful rewrite also writes `My Video.review.json` next to the original. It holds, per segment, the original text, the enhanced text, the word-level changes between them (`hunks`), and any spans the runner reported as uncertain. A review screen or report reads this file; nothing else needs the rewritten files to show a diff. The path is printed last, after the original and rewritten paths.
+
+Requests now carry `"protocol": 2`. A runner may add an optional `uncertain` list to any response segment:
+
+```json
+{"text": "They're going home",
+ "uncertain": [{"start": 0, "end": 7, "score": 0.41, "reason": "low token probability"}]}
+```
+
+`start` and `end` are character offsets into that segment's `text`; `score` (0 to 1, optional) is the runner's confidence. Runners that do not send `uncertain` keep working: the review file then has the diff but no uncertainty markers, and `stats.has_confidence` is `false`. Malformed spans are dropped instead of failing the rewrite. These are hints about where to look, not a judgement that the text is wrong.
+
 ## Building a local runner
 
 A runner only needs standard input/output handling. The model call is intentionally outside `ytt` so the same CLI feature can work with different local engines:

@@ -13,6 +13,7 @@ from .cache import DEFAULT_TTL, Cache
 from .captions import parse_any
 from .formatter import FORMATS, render
 from .model import Transcript
+from .review import build_review, render_review
 from .rewriter import rewrite_transcript
 from .segments import quality_report
 from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filename
@@ -150,6 +151,12 @@ def rewritten_output_path(path: str) -> str:
     return root + ".rewritten" + ext
 
 
+def review_output_path(path: str) -> str:
+    """Review sidecar next to an original output, e.g. ``video.review.json``."""
+    root, _ = os.path.splitext(path)
+    return root + ".review.json"
+
+
 def _write_formats(t: Transcript, args, title: str, vid: str, multi: bool,
                    log: Log, companion: bool) -> List[str]:
     written: List[str] = []
@@ -189,7 +196,17 @@ def write_outputs(transcript: Transcript, args, title: str, vid: str,
     except Exception as exc:
         raise RewriteFailed("local rewrite failed: %s" % exc, written) from exc
     log.info("  ✓ local rewrite · %s" % fmt_elapsed(t0.ms))
-    return written + _write_formats(rewritten, args, title, vid, multi, log, True)
+    companions = _write_formats(rewritten, args, title, vid, multi, log, True)
+    review_path = review_output_path(written[0])
+    try:
+        with open(review_path, "w", encoding="utf-8") as fh:
+            fh.write(render_review(build_review(transcript, rewritten)))
+    except (OSError, ValueError) as exc:
+        # The review sidecar is advisory; never lose the rewritten files over it.
+        log.warn("could not write review file: %s" % exc)
+        return written + companions
+    log.debug("wrote %s (review)" % review_path)
+    return written + companions + [review_path]
 
 
 def process_one(
