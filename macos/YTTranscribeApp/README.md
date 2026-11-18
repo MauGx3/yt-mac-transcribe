@@ -1,6 +1,9 @@
 # YT Transcribe for macOS
 
-A lightweight SwiftUI wrapper around the existing `ytt` command. The app accepts one YouTube URL, creates the original text transcript, and asks whether to create a reviewed copy with a configured local model command.
+A lightweight SwiftUI wrapper around the existing `ytt` command and a small transcript manager.
+
+- **Transcribe tab:** a single video, a whole playlist (`ytt --playlist`), or a batch of URLs (one per line). Pick one or more output formats (txt, srt, vtt, json, md). For a single video the app then asks whether to create a reviewed copy with a configured local model command; playlist and batch runs skip review.
+- **Library tab:** every transcript is remembered (`~/Library/Application Support/YTTranscribe/library.json`). Search by title, URL, or the transcript text itself; open, reveal, or remove entries. Removing an entry never deletes the transcript files.
 
 ## Requirements
 

@@ -35,6 +35,25 @@ folders, in order:
 
 You can also pass the file path directly with `--model`.
 
+### MLX Whisper engine (Apple Silicon)
+
+[mlx-whisper](https://pypi.org/project/mlx-whisper/) is an alternative engine
+that runs on the Apple GPU:
+
+```bash
+brew install ffmpeg
+pipx install mlx-whisper
+ytt URL --asr always --engine mlx --model small.en
+```
+
+`--engine auto` (default) uses whisper.cpp when installed, otherwise MLX.
+Short model names (`tiny.en`, `base.en`, `small.en`, `medium.en`, `large-v3`,
+`large-v3-turbo`) map to `mlx-community` repos on Hugging Face; you can also
+pass any repo id or local directory. Models download on first use, or ahead of
+time with `ytt --engine mlx --download-model -m large-v3-turbo` (needs the
+`hf` CLI). `ytt --list-models` shows what is already downloaded. The macOS app
+has matching engine and model pickers in Settings.
+
 ### Install `ytt`
 
 ```bash
@@ -85,7 +104,10 @@ ytt [URL ...] [options]
   -f, --format FMT ...     txt srt vtt json md            (default: txt)
   -o, --out PATH           output directory or explicit file path
   -l, --langs LIST         language preference, e.g. pt,en (default: en)
-  -m, --model NAME         whisper.cpp fallback model (default: small.en)
+  -m, --model NAME         ASR model name, path, or MLX repo id (default: small.en)
+  --engine ENGINE          auto, whisper-cpp or mlx (default: auto)
+  --download-model         download the MLX --model and exit
+  --list-models            list MLX models and download status
       --asr {never,auto,always}
                            auto uses captions then escalates when needed
       --timestamps         add [mm:ss] to txt/md output
