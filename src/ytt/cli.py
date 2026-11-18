@@ -40,7 +40,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-l", "--langs", default=",".join(DEFAULT_LANGS),
                    help="comma-separated language preference, e.g. 'pt,en' (default: en)")
     p.add_argument("-m", "--model", default=asr_mod.DEFAULT_MODEL,
-                   help="whisper.cpp model for the ASR fallback (default: %(default)s)")
+                   help="ASR model: a short name (%s), a whisper.cpp .bin path, "
+                        "or an MLX repo id (default: %%(default)s)" % ", ".join(asr_mod.MLX_MODELS))
+    p.add_argument("--engine", choices=list(asr_mod.ENGINES), default="auto",
+                   help="ASR engine: whisper-cpp, mlx (mlx-whisper, Apple Silicon), "
+                        "or auto = whichever is installed, whisper.cpp first (default)")
+    p.add_argument("--download-model", action="store_true",
+                   help="download the --model for --engine mlx now, then exit")
+    p.add_argument("--list-models", action="store_true",
+                   help="list known models and whether each MLX model is downloaded, then exit")
     p.add_argument("--asr", choices=["never", "auto", "always"], default="auto",
                    help="local ASR usage: auto escalates only when captions are "
                         "missing/unusable (default), never, or always")
@@ -260,15 +268,17 @@ def process_one(
                 log.debug("caption fetch failed: %s" % exc)
 
     if transcript is None and args.asr != "never":
-        if not asr_mod.asr_ready():
+        if not asr_mod.asr_ready(args.engine):
             log.warn("no usable captions and the local ASR fallback is not installed")
             for k, v in asr_mod.detect_backends().items():
                 log.info("    %-16s %s" % (k, v or "not found"))
-            log.info("  install with: brew install yt-dlp ffmpeg whisper-cpp")
+            log.info("  install with: brew install yt-dlp ffmpeg whisper-cpp"
+                     "  (or: pipx install mlx-whisper, then --engine mlx)")
             return None, []
         t0 = Timer()
         try:
-            segments = asr_mod.transcribe_audio(url, args.model, log, lang=langs[0] if langs else "auto")
+            segments = asr_mod.transcribe_audio(url, args.model, log, lang=langs[0] if langs else "auto",
+                                            engine=args.engine)
             transcript = asr_mod.transcript_from_asr(meta, segments, args.model,
                                                      lang=langs[0] if langs else "auto")
             log.info("  ✓ local ASR · %s words · %s" % (
@@ -315,6 +325,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.rewrite_command is not None and not args.rewrite_command:
         parser.error("--rewrite-command requires a command")
     log = Log(quiet=args.quiet, verbose=args.verbose)
+
+    if args.list_models:
+        for name, repo in asr_mod.MLX_MODELS.items():
+            state = "downloaded" if asr_mod.mlx_model_cached(repo) else "not downloaded"
+            log.info("%-15s %-45s %s" % (name, repo, state))
+        return 0
+    if args.download_model:
+        if args.engine == "whisper-cpp":
+            log.error("--download-model is for the mlx engine; whisper.cpp models are "
+                      "fetched with whisper-cpp-download-ggml-model")
+            return 2
+        try:
+            repo = asr_mod.download_mlx_model(args.model, log)
+        except asr_mod.ASRUnavailable as exc:
+            log.error(str(exc))
+            return 1
+        print(repo)
+        return 0
 
     cache = Cache(enabled=not args.no_cache, ttl=args.cache_ttl)
     if args.clear_cache:

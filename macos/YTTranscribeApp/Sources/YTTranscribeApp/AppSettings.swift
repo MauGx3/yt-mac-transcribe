@@ -1,9 +1,34 @@
 import Foundation
 
+/// Local speech-recognition engine used when a video has no usable captions.
+enum ASREngine: String, CaseIterable, Identifiable {
+    case auto
+    case whisperCpp = "whisper-cpp"
+    case mlx
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .auto: return "Automatic"
+        case .whisperCpp: return "whisper.cpp"
+        case .mlx: return "MLX Whisper (Apple Silicon)"
+        }
+    }
+}
+
+/// Short model names understood by `ytt --model` for both engines.
+enum ASRModel {
+    static let defaultName = "small.en"
+    static let names = ["tiny.en", "base.en", "small.en", "medium.en", "large-v3", "large-v3-turbo"]
+}
+
 struct AppSettings: Equatable {
     var yttExecutable: URL
     var rewriteCommand: [String]
     var outputDirectory: URL
+    var engine: ASREngine = .auto
+    var model: String = ASRModel.defaultName
 
     static let defaultOutputDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/yt-transcribe", isDirectory: true)
@@ -23,7 +48,9 @@ struct AppSettings: Equatable {
         return AppSettings(
             yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
             rewriteCommand: Self.parseCommand(rewrite) ?? [],
-            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true)
+            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true),
+            engine: values.string(forKey: "asrEngine").flatMap(ASREngine.init(rawValue:)) ?? .auto,
+            model: values.string(forKey: "asrModel").flatMap { $0.isEmpty ? nil : $0 } ?? ASRModel.defaultName
         )
     }
 
@@ -74,5 +101,7 @@ struct AppSettings: Equatable {
         defaults.set(yttExecutable.path, forKey: "yttExecutable")
         defaults.set(rewriteCommand.joined(separator: " "), forKey: "rewriteCommand")
         defaults.set(outputDirectory.path, forKey: "outputDirectory")
+        defaults.set(engine.rawValue, forKey: "asrEngine")
+        defaults.set(model, forKey: "asrModel")
     }
 }
