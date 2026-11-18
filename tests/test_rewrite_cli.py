@@ -96,10 +96,21 @@ class TestWriteOutputs(unittest.TestCase):
             )
             self.assertEqual(
                 [os.path.basename(p) for p in written],
-                ["Video.txt", "Video.json", "Video.rewritten.txt", "Video.rewritten.json"],
+                [
+                    "Video.txt",
+                    "Video.json",
+                    "Video.rewritten.txt",
+                    "Video.rewritten.json",
+                    "Video.review.json",
+                    "Video.review.html",
+                ],
             )
             with open(os.path.join(tmp, "Video.rewritten.txt"), encoding="utf-8") as fh:
                 self.assertIn("HELLO THERE", fh.read())
+            with open(os.path.join(tmp, "Video.review.json"), encoding="utf-8") as fh:
+                review = json.load(fh)
+            self.assertEqual(review["version"], 1)
+            self.assertGreater(review["stats"]["changed"], 0)
 
 
 class TestMainReportsRewriteFailure(unittest.TestCase):

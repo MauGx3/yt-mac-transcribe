@@ -18,6 +18,8 @@ struct YTTranscribeApp: App {
                     .tabItem { Label("Transcribe", systemImage: "text.badge.plus") }
                 LibraryView(library: library)
                     .tabItem { Label("Library", systemImage: "books.vertical") }
+                BenchmarkView(model: model)
+                    .tabItem { Label("Benchmark", systemImage: "speedometer") }
             }
             .frame(minWidth: 560, minHeight: 480)
         }

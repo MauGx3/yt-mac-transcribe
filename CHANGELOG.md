@@ -9,8 +9,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `ytt demo`: benchmarks speech-to-text engines and models and MLX-LM cleanup
+  models on a copyright-free sample voiced on the Mac, recommends a model for
+  each, and saves the choice to `~/.config/ytt/config.json` as the new
+  default. See `docs/demo.md`.
+- macOS app: Benchmark tab that runs `ytt demo` and applies the chosen models.
 - `tools/rewrite_with_local_model.py`: MLX-LM runner for `--rewrite-command`,
   referenced by the README but previously missing.
+- Review file: a rewrite now also writes `<name>.review.json` with a word-level
+  diff of original vs enhanced text, and rewrite protocol v2 lets a runner report
+  uncertain spans per segment. Groundwork for the app's diff review screen.
+- `tools/rewrite_with_local_model.py` reports changed words the model was unsure
+  about (`--unsure-below`, default 0.5) from MLX-LM token probabilities.
+- macOS app: after an AI enhancement, a review screen shows each change with
+  Accept/Reject, labels "AI unsure" and "Unclear audio" spots, and saves the
+  final `<name>.reviewed.txt`. The AI output is now called "Enhanced".
+- macOS Library: enhanced transcripts show "Needs review" or "Reviewed", with
+  buttons to reopen the review screen and the Reviewed copy.
+- "Unclear audio" labels from real data: whisper.cpp (`-ojf`) and mlx-whisper
+  (`--word-timestamps True`) word confidence is kept as `conf` in JSON output,
+  and the review file marks words under 0.5, both those the AI changed and those
+  it left alone.
+- HTML review report: every rewrite also writes `<name>.review.html`, a
+  self-contained page with both labels, keep/reject per change, and a
+  "Download Reviewed" button. `ytt --review-report FILE` rebuilds it.
 
 ### Changed
 

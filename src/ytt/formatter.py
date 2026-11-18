@@ -7,7 +7,7 @@ import textwrap
 from typing import Dict, List
 
 from .model import Transcript
-from .segments import Segment, merge_paragraphs
+from .segments import Segment, Word, merge_paragraphs
 from .util import fmt_duration
 
 FORMATS = ("txt", "srt", "vtt", "json", "md")
@@ -102,9 +102,14 @@ def _seg_json(seg: Segment, include_words: bool) -> Dict:
         "text": seg.text,
     }
     if include_words and seg.words:
-        data["words"] = [
-            {"start_ms": w.start_ms, "end_ms": w.end_ms, "text": w.text} for w in seg.words
-        ]
+        data["words"] = [_word_json(w) for w in seg.words]
+    return data
+
+
+def _word_json(w: Word) -> Dict:
+    data = {"start_ms": w.start_ms, "end_ms": w.end_ms, "text": w.text}
+    if w.conf is not None:
+        data["conf"] = round(w.conf, 4)
     return data
 
 
