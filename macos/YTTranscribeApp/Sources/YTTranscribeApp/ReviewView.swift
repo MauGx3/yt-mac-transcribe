@@ -18,6 +18,8 @@ final class ReviewViewModel: ObservableObject, Identifiable {
     @Published var filter: Filter = .changes
     @Published private(set) var savedURL: URL?
     @Published private(set) var saveError: String?
+    /// Told where the Reviewed copy went, so the library can record it.
+    var onSave: (@MainActor (URL) -> Void)?
 
     init(document: ReviewDocument, reviewFile: URL) {
         self.document = document
@@ -50,6 +52,7 @@ final class ReviewViewModel: ObservableObject, Identifiable {
             try decisions.reviewedText(for: document).write(to: url, atomically: true, encoding: .utf8)
             savedURL = url
             saveError = nil
+            onSave?(url)
         } catch {
             saveError = error.localizedDescription
         }

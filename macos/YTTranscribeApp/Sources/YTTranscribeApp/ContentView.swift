@@ -154,7 +154,10 @@ struct ContentView: View {
 
     private func openReview(_ file: URL) {
         do {
-            reviewSession = try ReviewViewModel(reviewFile: file)
+            let session = try ReviewViewModel(reviewFile: file)
+            let model = self.model
+            session.onSave = { copy in model.reviewSaved(reviewFile: file, copy: copy) }
+            reviewSession = session
             reviewLoadError = nil
         } catch {
             reviewLoadError = "Could not open the review file: \(error.localizedDescription)"

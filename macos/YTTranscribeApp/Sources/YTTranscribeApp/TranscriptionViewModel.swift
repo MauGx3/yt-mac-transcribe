@@ -161,12 +161,18 @@ final class TranscriptionViewModel: ObservableObject {
             let files = try await runner.review(url: url, settings: settings)
             if let id = activeRecordID, var record = library?.record(id: id) {
                 record.reviewed = files.reviewed
+                record.reviewFile = files.review
                 library?.update(record)
             }
             finish(operationID, with: .completed(TranscriptFiles(original: originals.original, reviewed: files.reviewed, review: files.review)))
         } catch {
             finish(operationID, with: .failed(error.localizedDescription))
         }
+    }
+
+    /// Called when the review screen saves the Reviewed copy.
+    func reviewSaved(reviewFile: URL, copy: URL) {
+        library?.markReviewed(reviewFile: reviewFile, copy: copy)
     }
 
     func cancel() {

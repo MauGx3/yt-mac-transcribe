@@ -38,6 +38,8 @@ struct LibraryView: View {
 private struct LibraryRow: View {
     let record: TranscriptRecord
     let library: LibraryStore
+    @State private var reviewSession: ReviewViewModel?
+    @State private var reviewError: String?
 
     private var missing: Bool {
         guard let file = record.primaryFile else { return true }
@@ -58,9 +60,16 @@ private struct LibraryRow: View {
             }
             Text(record.sourceURL).font(.caption).foregroundStyle(.secondary).lineLimit(1).textSelection(.enabled)
             HStack {
-                Text(record.formats.joined(separator: " · ") + (record.reviewed == nil ? "" : " · reviewed"))
+                Text(record.formats.joined(separator: " · ") + (record.reviewed == nil ? "" : " · enhanced"))
                     .font(.caption)
+                reviewBadge
                 Spacer()
+                if let reviewFile = record.reviewFile {
+                    Button(record.reviewStatus == .reviewed ? "Review Again" : "Review Changes") { openReview(reviewFile) }
+                }
+                if let copy = record.reviewedCopy {
+                    Button("Open Reviewed") { NSWorkspace.shared.open(copy) }
+                }
                 Button("Open") { if let file = record.primaryFile { NSWorkspace.shared.open(file) } }
                     .disabled(missing)
                 if let reviewed = record.reviewed {
@@ -72,7 +81,37 @@ private struct LibraryRow: View {
                     .help("Removes the entry from the library. Transcript files stay on disk.")
             }
             .buttonStyle(.link)
+            if let reviewError {
+                Text(reviewError).font(.caption).foregroundStyle(.red)
+            }
         }
         .padding(.vertical, 4)
+        .sheet(item: $reviewSession) { session in
+            ReviewView(model: session)
+        }
+    }
+
+    @ViewBuilder
+    private var reviewBadge: some View {
+        switch record.reviewStatus {
+        case .needsReview:
+            Label("Needs review", systemImage: "circle.dashed").font(.caption).foregroundColor(.orange)
+        case .reviewed:
+            Label("Reviewed", systemImage: "checkmark.circle.fill").font(.caption).foregroundColor(.green)
+        case .notEnhanced:
+            EmptyView()
+        }
+    }
+
+    private func openReview(_ file: URL) {
+        do {
+            let session = try ReviewViewModel(reviewFile: file)
+            let library = self.library
+            session.onSave = { copy in library.markReviewed(reviewFile: file, copy: copy) }
+            reviewSession = session
+            reviewError = nil
+        } catch {
+            reviewError = "Could not open the review file: \(error.localizedDescription)"
+        }
     }
 }

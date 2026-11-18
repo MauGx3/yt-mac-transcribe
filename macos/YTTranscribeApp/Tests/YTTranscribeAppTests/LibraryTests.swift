@@ -127,4 +127,40 @@ final class LibraryTests: XCTestCase {
         await model.startBatch(urls: [], playlist: false)
         guard case .failed = model.state else { return XCTFail("Expected failure") }
     }
+
+    @MainActor
+    func testReviewFileAndReviewedCopyMoveRecordThroughStatuses() async {
+        let original = URL(fileURLWithPath: "/tmp/Talk.txt")
+        let enhanced = URL(fileURLWithPath: "/tmp/Talk.rewritten.txt")
+        let review = URL(fileURLWithPath: "/tmp/Talk.review.json")
+        let runner = StubRunner(transcriptionResult: TranscriptFiles(original: original),
+                                reviewResult: TranscriptFiles(original: original, reviewed: enhanced, review: review))
+        let library = LibraryStore(fileURL: nil)
+        let settings = AppSettings(yttExecutable: URL(fileURLWithPath: "/tmp/ytt"), rewriteCommand: ["local"], outputDirectory: URL(fileURLWithPath: "/tmp"))
+        let model = TranscriptionViewModel(settings: settings, runner: runner, library: library)
+        await model.start(url: "https://youtu.be/talk")
+        XCTAssertEqual(library.records[0].reviewStatus, .notEnhanced)
+        await model.acceptReview()
+        XCTAssertEqual(library.records[0].reviewFile, review)
+        XCTAssertEqual(library.records[0].reviewStatus, .needsReview)
+        guard case let .completed(files) = model.state else { return XCTFail("Expected completed") }
+        XCTAssertEqual(files.review, review)
+
+        let copy = URL(fileURLWithPath: "/tmp/Talk.reviewed.txt")
+        model.reviewSaved(reviewFile: review, copy: copy)
+        XCTAssertEqual(library.records[0].reviewedCopy, copy)
+        XCTAssertEqual(library.records[0].reviewStatus, .reviewed)
+        XCTAssertTrue(library.records[0].allFiles.contains(copy))
+    }
+
+    func testLibrarySavedBeforeReviewFieldsStillLoads() throws {
+        let json = #"[{"id":"7C4C3F4E-8A0B-4C47-9B49-7B0F1B7E2A11","title":"Old","sourceURL":"u","createdAt":"2026-11-01T10:00:00Z","kind":"single","files":["file:///tmp/Old.txt"],"reviewed":"file:///tmp/Old.rewritten.txt"}]"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let records = try decoder.decode([TranscriptRecord].self, from: Data(json.utf8))
+        XCTAssertEqual(records.count, 1)
+        XCTAssertNil(records[0].reviewFile)
+        XCTAssertNil(records[0].reviewedCopy)
+        XCTAssertEqual(records[0].reviewStatus, .notEnhanced)
+    }
 }

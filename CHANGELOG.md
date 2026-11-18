@@ -19,6 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - macOS app: after an AI enhancement, a review screen shows each change with
   Accept/Reject, labels "AI unsure" and "Unclear audio" spots, and saves the
   final `<name>.reviewed.txt`. The AI output is now called "Enhanced".
+- macOS Library: enhanced transcripts show "Needs review" or "Reviewed", with
+  buttons to reopen the review screen and the Reviewed copy.
 
 ### Changed
 
