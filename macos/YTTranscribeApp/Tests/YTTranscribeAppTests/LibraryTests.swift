@@ -42,11 +42,11 @@ final class LibraryTests: XCTestCase {
         settings.formats = [.srt, .txt]
         XCTAssertEqual(
             TranscriptionRunner.batchArguments(urls: ["u1", "u2"], playlist: false, settings: settings),
-            ["u1", "u2", "-f", "txt", "srt", "-o", "/tmp/out"]
+            ["u1", "u2", "-f", "txt", "srt", "-o", "/tmp/out", "--engine", "auto", "--model", "small.en"]
         )
         XCTAssertEqual(
             TranscriptionRunner.batchArguments(urls: ["list"], playlist: true, settings: settings),
-            ["--playlist", "list", "-f", "txt", "srt", "-o", "/tmp/out"]
+            ["--playlist", "list", "-f", "txt", "srt", "-o", "/tmp/out", "--engine", "auto", "--model", "small.en"]
         )
     }
 

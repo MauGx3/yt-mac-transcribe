@@ -27,6 +27,12 @@ struct AppSettings: Equatable {
     var yttExecutable: URL
     var rewriteCommand: [String]
     var outputDirectory: URL
+    var formats: [OutputFormat] = [.txt]
+    var engine: ASREngine = .auto
+    var model: String = ASRModel.defaultName
+
+    /// Selected formats, deduplicated; never empty.
+    var effectiveFormats: [OutputFormat] { OutputFormat.normalized(formats) }
 
     static let defaultOutputDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/yt-transcribe", isDirectory: true)
@@ -46,7 +52,10 @@ struct AppSettings: Equatable {
         return AppSettings(
             yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
             rewriteCommand: Self.parseCommand(rewrite) ?? [],
-            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true)
+            outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true),
+            formats: OutputFormat.parse(values.string(forKey: "formats") ?? "txt"),
+            engine: values.string(forKey: "asrEngine").flatMap(ASREngine.init(rawValue:)) ?? .auto,
+            model: values.string(forKey: "asrModel").flatMap { $0.isEmpty ? nil : $0 } ?? ASRModel.defaultName
         )
     }
 
@@ -97,5 +106,8 @@ struct AppSettings: Equatable {
         defaults.set(yttExecutable.path, forKey: "yttExecutable")
         defaults.set(rewriteCommand.joined(separator: " "), forKey: "rewriteCommand")
         defaults.set(outputDirectory.path, forKey: "outputDirectory")
+        defaults.set(effectiveFormats.map(\.rawValue).joined(separator: ","), forKey: "formats")
+        defaults.set(engine.rawValue, forKey: "asrEngine")
+        defaults.set(model, forKey: "asrModel")
     }
 }
