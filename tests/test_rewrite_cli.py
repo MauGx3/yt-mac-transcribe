@@ -108,7 +108,7 @@ class TestMainReportsRewriteFailure(unittest.TestCase):
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = cli.main(["https://youtu.be/good", "https://youtu.be/bad",
                              "--delay", "0", "--rewrite-command", "x"])
-        self.assertEqual(code, 0)  # existing contract: 0 when any video succeeded
+        self.assertEqual(code, cli.EXIT_PARTIAL)  # one of two videos failed
         self.assertEqual(out.getvalue().split(), ["/tmp/good.txt", "/tmp/bad.txt"])
         self.assertIn("failed: https://youtu.be/bad", err.getvalue())
 

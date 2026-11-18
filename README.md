@@ -21,7 +21,9 @@ The local ASR fallback is optional:
 
 ```bash
 brew install ffmpeg whisper-cpp
-whisper-cpp-download-ggml-model small.en
+mkdir -p ~/.cache/whisper
+curl -L -o ~/.cache/whisper/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
 `ytt --model small.en` looks for `small.en` or `ggml-small.en.bin` in these
@@ -132,6 +134,8 @@ ytt [URL ...] [options]
 
 `--out` is treated as a directory unless it ends in a known output extension. For example, `-o transcripts` creates a directory target even when it does not exist yet.
 
+Exit codes: `0` when every video succeeded, `1` when none did, `2` for a usage error or missing `yt-dlp`, and `3` when a batch or playlist wrote some transcripts but at least one video failed.
+
 ## Output formats
 
 - **`txt`**: readable paragraphs without timestamps by default.
@@ -191,6 +195,7 @@ Live checks access YouTube and may be affected by rate limits. Read the developm
 - Videos without usable captions require the optional ASR toolchain.
 - YouTube translations are machine-generated; prefer the original language when it is available.
 - `live_chat` is excluded because its payload is not a subtitle track.
+- The python.org installer for macOS ships without CA certificates until you run **Install Certificates.command** (in `/Applications/Python 3.x/`). Without them, every caption fetch fails TLS verification and falls back to the much slower `yt-dlp` path (`ytt -v` shows `CERTIFICATE_VERIFY_FAILED`). `ytt` works around this by using `certifi` when installed, or the macOS system bundle at `/etc/ssl/cert.pem`, but running the command is the proper fix. Setting `SSL_CERT_FILE` always takes precedence.
 
 ## Contributing
 
@@ -198,7 +203,7 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution checklist and [`d
 
 ## License
 
-MIT
+MIT. See [`LICENSE`](LICENSE).
 
 ## Native macOS app
 

@@ -20,6 +20,8 @@ from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filen
 from .youtube import RateLimited, VideoError, YtDlpMissing, YouTube
 
 DEFAULT_LANGS = ["en"]
+# Exit code when a batch or playlist run wrote some transcripts but not all.
+EXIT_PARTIAL = 3
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -350,8 +352,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.download_model:
         if args.engine == "whisper-cpp":
-            log.error("--download-model is for the mlx engine; whisper.cpp models are "
-                      "fetched with whisper-cpp-download-ggml-model")
+            log.error("--download-model is for the mlx engine; fetch a whisper.cpp model with:\n  %s"
+                      % asr_mod.whisper_cpp_download_command(args.model))
             return 2
         try:
             repo = asr_mod.download_mlx_model(args.model, log)
@@ -447,7 +449,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("\n%d/%d succeeded" % (ok, len(expanded)))
         if failed:
             log.info("failed: %s" % ", ".join(failed))
-    return 0 if ok else 1
+    if not ok:
+        return 1
+    # Some videos worked and some did not: a distinct code lets scripts and
+    # the macOS app keep the files that were written.
+    return EXIT_PARTIAL if ok < len(expanded) else 0
 
 
 if __name__ == "__main__":

@@ -53,7 +53,9 @@ Install the optional ASR toolchain only when you need it:
 
 ```bash
 brew install ffmpeg whisper-cpp
-whisper-cpp-download-ggml-model small.en
+mkdir -p ~/.cache/whisper
+curl -L -o ~/.cache/whisper/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
 The package itself does not download models. The model name passed to `--model` must be available to the installed `whisper-cpp` command.

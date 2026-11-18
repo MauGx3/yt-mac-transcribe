@@ -49,6 +49,36 @@ final class TranscriptionRunnerTests: XCTestCase {
         }
     }
 
+    func testBatchKeepsWrittenFilesWhenSomeVideosFail() async throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let written = temp.appendingPathComponent("good.txt")
+        try "text".write(to: written, atomically: true, encoding: .utf8)
+        let script = temp.appendingPathComponent("partial-ytt")
+        try "#!/bin/sh\necho '\(written.path)'\necho 'one video failed' >&2\nexit 3\n"
+            .write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let settings = AppSettings(yttExecutable: script, rewriteCommand: [], outputDirectory: temp)
+        let groups = try await TranscriptionRunner().transcribeMany(
+            urls: ["https://example.invalid/a", "https://example.invalid/b"], playlist: false, settings: settings)
+        XCTAssertEqual(groups.map(\.original.lastPathComponent), ["good.txt"])
+    }
+
+    func testSingleVideoStillFailsOnPartialExitCode() async throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let script = temp.appendingPathComponent("partial-ytt")
+        try "#!/bin/sh\nexit 3\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let settings = AppSettings(yttExecutable: script, rewriteCommand: [], outputDirectory: temp)
+        do {
+            _ = try await TranscriptionRunner().transcribe(url: "https://example.invalid", settings: settings)
+            XCTFail("Expected command failure")
+        } catch {}
+    }
+
     func testMissingOutputIsFailure() async throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
@@ -73,6 +103,15 @@ final class TranscriptionRunnerTests: XCTestCase {
         XCTAssertTrue(entries.contains("/custom/bin"))
         XCTAssertEqual(entries.filter { $0 == "/usr/bin" }.count, 1)
         XCTAssertEqual(env["HOME"], "/Users/test")
+    }
+
+    func testProcessEnvironmentIncludesPipxBinDirectory() {
+        // `pipx install mlx-whisper` (as the README suggests) puts tools in ~/.local/bin,
+        // which a Finder-launched app does not have on PATH.
+        let env = TranscriptionRunner.processEnvironment(base: ["PATH": "/usr/bin", "HOME": "/Users/test"])
+        let entries = env["PATH"]?.split(separator: ":").map(String.init) ?? []
+        XCTAssertTrue(entries.contains("/Users/test/.local/bin"))
+        XCTAssertLessThan(entries.firstIndex(of: "/Users/test/.local/bin")!, entries.firstIndex(of: "/usr/bin")!)
     }
 
     func testExecuteDoesNotDeadlockOnOutputLargerThanPipeBuffer() async throws {

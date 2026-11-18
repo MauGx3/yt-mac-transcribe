@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from .cache import META_TTL, Cache
+from .tls import ssl_context
 from .util import Log
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
@@ -185,7 +186,7 @@ class YouTube:
                 req = urllib.request.Request(
                     url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
                 )
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as resp:
                     return resp.read().decode("utf-8", "replace")
             except urllib.error.HTTPError as exc:
                 if exc.code == 429:
