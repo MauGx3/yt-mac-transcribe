@@ -17,10 +17,12 @@ From a clean checkout:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-python3 tests/test_parsing.py
-python3 tests/test_tracks.py
-python3 tests/test_cache.py
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
+
+These are the same network-free tests CI runs on Python 3.8 and 3.12. If you
+changed the macOS app, also run its XCTest suite (see the
+[app README](macos/YTTranscribeApp/README.md#development)).
 
 For changes that touch the network or performance path, run the relevant live command manually and document the video type used. Live tests are not a substitute for deterministic unit tests.
 
@@ -31,6 +33,7 @@ For changes that touch the network or performance path, run the relevant live co
 - Keep YouTube-specific behavior in `youtube.py` and parsing behavior in `captions.py` / `segments.py`.
 - Preserve provenance and warnings in the `Transcript` model when adding a new source or fallback.
 - Keep CLI output stable and update the README when flags or defaults change.
+- Write user-facing docs for someone who has never used a terminal tool like this: say what a step does, show how to check it worked, and add new error messages to [`docs/troubleshooting.md`](docs/troubleshooting.md).
 - Treat caption payloads as untrusted input: handle malformed JSON, VTT, SRT, empty events, and unexpected fields.
 
 ## Pull requests

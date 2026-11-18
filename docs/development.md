@@ -19,7 +19,7 @@ Changes should preserve these goals unless the change explicitly revises the pro
 - macOS is the primary development platform
 - Apple silicon is the target performance platform
 - `yt-dlp` is required at runtime
-- `ffmpeg` and `whisper.cpp` are required only for local ASR
+- `ffmpeg` plus `whisper.cpp` or `mlx-whisper` are required only for local ASR
 - Runtime Python dependencies are intentionally empty
 
 The package is installed from a `src/` layout. The console command is declared in `pyproject.toml`:
@@ -58,33 +58,41 @@ curl -L -o ~/.cache/whisper/ggml-small.en.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
-The package itself does not download models. The model name passed to `--model` must be available to the installed `whisper-cpp` command.
+The package itself does not download whisper.cpp models; `ytt` looks for the file in the folders listed in the README. MLX models are downloaded by `mlx_whisper` on first use, or ahead of time with `ytt --engine mlx --download-model`.
 
 ## Repository layout
 
 ```text
 .
-├── README.md
+├── README.md                # user guide
 ├── CONTRIBUTING.md
+├── CHANGELOG.md
 ├── pyproject.toml
+├── docs/
+│   ├── development.md       # this guide
+│   ├── local-rewriting.md   # --rewrite-command protocol
+│   └── troubleshooting.md   # user-facing problems and fixes
 ├── src/ytt/
-│   ├── __main__.py     # python -m ytt entry point
-│   ├── __init__.py     # package version
-│   ├── cli.py          # argument parsing and end-to-end orchestration
-│   ├── youtube.py      # yt-dlp, track discovery, selection, and fetching
-│   ├── captions.py     # json3, VTT, SRT, and Whisper JSON parsers
-│   ├── segments.py     # shared model cleanup, deduplication, timing repair
-│   ├── model.py        # Transcript model and provenance fields
-│   ├── formatter.py    # txt, SRT, VTT, JSON, and Markdown output
-│   ├── cache.py        # filesystem metadata and caption cache
-│   ├── asr.py          # optional whisper.cpp integration
-│   └── util.py         # logging, timing, filenames, and small helpers
-└── tests/
-    ├── test_parsing.py # parser, cleanup, quality, formatter, and utility tests
-    ├── test_tracks.py  # track selection and output-path tests
-    ├── test_cache.py   # cache tests
-    ├── sweep.py        # optional live robustness sweep
-    └── benchmark.py    # optional live performance comparison
+│   ├── __main__.py          # python -m ytt entry point
+│   ├── __init__.py          # package version
+│   ├── cli.py               # argument parsing and end-to-end orchestration
+│   ├── youtube.py           # yt-dlp, track discovery, selection, and fetching
+│   ├── captions.py          # json3, VTT, SRT, and Whisper JSON parsers
+│   ├── segments.py          # shared cleanup, deduplication, timing repair, quality checks
+│   ├── model.py             # Transcript model and provenance fields
+│   ├── formatter.py         # txt, SRT, VTT, JSON, and Markdown output
+│   ├── cache.py             # filesystem metadata and caption cache
+│   ├── asr.py               # optional whisper.cpp and mlx-whisper integration
+│   ├── rewriter.py          # local model rewrite protocol (--rewrite-command)
+│   ├── tls.py               # CA bundle fallback for python.org builds
+│   └── util.py              # logging, timing, filenames, and small helpers
+├── tools/
+│   └── rewrite_with_local_model.py  # bundled MLX-LM rewrite runner
+├── tests/
+│   ├── test_*.py            # network-free unit tests (run in CI)
+│   ├── sweep.py             # optional live robustness sweep
+│   └── benchmark.py         # optional live performance comparison
+└── macos/YTTranscribeApp/   # SwiftUI app; bundles ytt as ytt.pyz at build time
 ```
 
 ## Runtime pipeline
@@ -158,7 +166,7 @@ When a payload format is added:
 
 ## Cache behavior
 
-The default cache root is `~/.cache/yt-transcribe`. Metadata and caption payloads are stored separately with a seven-day TTL by default.
+The default cache root is `~/.cache/yt-transcribe`. Metadata and caption payloads are stored separately. Caption payloads use a seven-day TTL by default (`--cache-ttl`); metadata expires after one hour (`META_TTL`) because signed caption URLs inside it go stale.
 
 Use these commands while debugging cache behavior:
 
@@ -172,18 +180,16 @@ The cache is keyed by request inputs so that different videos, languages, and tr
 
 ## Test strategy
 
-The test suite uses `unittest` directly, so the tests run without installing a test framework:
-
-```bash
-python3 tests/test_parsing.py
-python3 tests/test_tracks.py
-python3 tests/test_cache.py
-```
-
-Run all network-free tests together:
+The test suite uses `unittest` directly, so the tests run without installing a test framework. Run all network-free tests together, the same way CI does:
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Run one file while you work on it:
+
+```bash
+python3 -m unittest tests/test_parsing.py -v
 ```
 
 Test categories:
@@ -194,7 +200,12 @@ Test categories:
 | Formatting | `tests/test_parsing.py` | text, SRT, VTT, JSON, and Markdown output |
 | Track selection | `tests/test_tracks.py` | language preference, source tiers, translations, pseudo-track filtering |
 | Output paths | `tests/test_tracks.py` | directory targets, explicit files, multi-video IDs |
-| Cache | `tests/test_cache.py` | reads, writes, TTL, disabled mode, clearing |
+| Cache | `tests/test_cache.py`, `tests/test_meta_ttl.py` | reads, writes, TTL, disabled mode, clearing |
+| Local ASR | `tests/test_asr_model.py`, `tests/test_mlx_engine.py` | model lookup, engine choice, MLX command lines |
+| Rewriting | `tests/test_rewriter.py`, `tests/test_rewrite_cli.py`, `tests/test_rewrite_runner.py` | rewrite protocol, CLI wiring, bundled runner |
+| Exit codes | `tests/test_exit_codes.py` | 0/1/2/3 exit status for single and batch runs |
+| TLS | `tests/test_tls.py` | CA bundle fallback order |
+| Fetch and format | `tests/test_fetch_format.py` | caption format detection on fetch |
 | Live robustness | `tests/sweep.py` | parser crashes, overlaps, duplicates, quality false positives |
 | Performance | `tests/benchmark.py` | caption path timing and ASR comparison |
 
