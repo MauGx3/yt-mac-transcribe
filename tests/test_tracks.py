@@ -5,8 +5,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.util import Log  # noqa: E402
-from ytt.youtube import Track, YouTube  # noqa: E402
+from ytt.util import Log
+from ytt.youtube import Track, YouTube
 
 
 def mk(lang, kind, fmts=("json3", "vtt")):

@@ -19,3 +19,41 @@ ytt = "ytt.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+# Keep in sync with requires-python: the CLI supports Python 3.8.
+target-version = "py38"
+line-length = 100
+src = ["src", "tests", "tools"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "UP",  # pyupgrade (limited to what Python 3.8 supports)
+  "C4",  # flake8-comprehensions
+  "SIM", # flake8-simplify
+  "RUF", # ruff-specific rules
+]
+ignore = [
+  "E501",  # line length is handled by the formatter
+  # The code base uses typing.List / Optional and %-formatting on purpose for
+  # Python 3.8 support; rewriting them is churn with no behavior change.
+  "UP006",
+  "UP031",
+  "UP045",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ytt"]
+
+[tool.ruff.format]
+quote-style = "double"
+# Leave code samples in the docs as written.
+exclude = ["*.md"]
+
+[tool.codespell]
+skip = "uv.lock,*.pbxproj"

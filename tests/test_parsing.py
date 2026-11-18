@@ -6,10 +6,10 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.captions import detect_format, parse_json3, parse_srt, parse_vtt  # noqa: E402
-from ytt.formatter import render  # noqa: E402
-from ytt.model import Transcript  # noqa: E402
-from ytt.segments import (  # noqa: E402
+from ytt.captions import detect_format, parse_json3, parse_srt, parse_vtt
+from ytt.formatter import render
+from ytt.model import Transcript
+from ytt.segments import (
     Segment,
     clean_segments,
     merge_paragraphs,
@@ -17,8 +17,7 @@ from ytt.segments import (  # noqa: E402
     strip_sound_tags,
     word_count,
 )
-from ytt.util import sanitize_filename  # noqa: E402
-
+from ytt.util import sanitize_filename
 
 STATIC_JSON3 = {
     "events": [

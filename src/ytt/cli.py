@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import argparse
-import time
 import os
 import sys
+import time
 from typing import List, Optional, Tuple
 
 from . import __version__
@@ -16,7 +16,7 @@ from .model import Transcript
 from .rewriter import rewrite_transcript
 from .segments import quality_report
 from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filename
-from .youtube import RateLimited, VideoError, YtDlpMissing, YouTube
+from .youtube import RateLimited, VideoError, YouTube, YtDlpMissing
 
 DEFAULT_LANGS = ["en"]
 # Exit code when a batch or playlist run wrote some transcripts but not all.
@@ -271,7 +271,7 @@ def process_one(
 
     if transcript is None and args.asr != "never":
         if not asr_mod.asr_ready(args.engine):
-            log.warn("no usable captions and the local ASR fallback is not installed")
+            log.warning("no usable captions and the local ASR fallback is not installed")
             for k, v in asr_mod.detect_backends().items():
                 log.info("    %-16s %s" % (k, v or "not found"))
             log.info("  install with: brew install yt-dlp ffmpeg whisper-cpp"
@@ -372,7 +372,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 expanded.extend("https://www.youtube.com/watch?v=%s" % i for i in ids)
                 continue
             except Exception as exc:
-                log.warn("could not expand playlist (%s); treating as a single video" % exc)
+                log.warning("could not expand playlist (%s); treating as a single video" % exc)
         expanded.append(url)
 
     multi = len(expanded) > 1

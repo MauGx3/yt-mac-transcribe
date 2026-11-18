@@ -3,7 +3,6 @@ import importlib.util
 import io
 import json
 import os
-import sys
 import unittest
 from unittest import mock
 

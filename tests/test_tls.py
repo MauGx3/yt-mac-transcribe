@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt import tls  # noqa: E402
+from ytt import tls
 
 
 def paths(cafile=None, capath=None, openssl_cafile="/missing/cert.pem",

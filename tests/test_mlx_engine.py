@@ -7,9 +7,9 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt import asr, cli  # noqa: E402
-from ytt.captions import parse_mlx_json  # noqa: E402
-from ytt.util import Log  # noqa: E402
+from ytt import asr, cli
+from ytt.captions import parse_mlx_json
+from ytt.util import Log
 
 NONE = {"yt-dlp": "/y", "ffmpeg": "/f", "whisper.cpp": None, "mlx_whisper": None}
 

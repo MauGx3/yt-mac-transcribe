@@ -13,9 +13,9 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.captions import parse_any  # noqa: E402
-from ytt.util import Log  # noqa: E402
-from ytt.youtube import YouTube  # noqa: E402
+from ytt.captions import parse_any
+from ytt.util import Log
+from ytt.youtube import YouTube
 
 # Rough whisper.cpp speed on M-series with Core ML, as multiples of realtime.
 # small.en ≈ 10-15x realtime; medium.en ≈ 4-6x; large-v3 ≈ 1.5-2.5x.

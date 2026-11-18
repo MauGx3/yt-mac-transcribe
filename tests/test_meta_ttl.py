@@ -8,7 +8,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.cache import META_TTL, Cache  # noqa: E402
+from ytt.cache import META_TTL, Cache
 
 
 class TestMetaTTL(unittest.TestCase):

@@ -11,10 +11,10 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.captions import parse_any  # noqa: E402
-from ytt.segments import quality_report  # noqa: E402
-from ytt.util import Log  # noqa: E402
-from ytt.youtube import YouTube  # noqa: E402
+from ytt.captions import parse_any
+from ytt.segments import quality_report
+from ytt.util import Log
+from ytt.youtube import YouTube
 
 QUERIES = [
     "ytsearch6:TED talk",

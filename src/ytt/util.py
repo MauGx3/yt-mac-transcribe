@@ -56,7 +56,7 @@ def fmt_elapsed(ms: int) -> str:
 
 
 def fmt_int(n: int) -> str:
-    return "{:,}".format(n)
+    return f"{n:,}"
 
 
 def sanitize_filename(name: str, max_len: int = 80) -> str:

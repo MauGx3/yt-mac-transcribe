@@ -22,6 +22,18 @@ python3 tests/test_tracks.py
 python3 tests/test_cache.py
 ```
 
+## Linting and formatting
+
+The repository uses [pre-commit](https://pre-commit.com) to run ruff (Python lint and format), codespell, shellcheck, actionlint, swift-format, and a few file hygiene checks. Install it once and enable the git hook:
+
+```bash
+uv tool install pre-commit   # or: pipx install pre-commit
+pre-commit install
+pre-commit run --all-files   # optional: check the whole tree
+```
+
+The same hooks run on every pull request in the `Lint` CI job and on pre-commit.ci. The swift-format hook needs Xcode 16 or later and only runs on macOS. Ruff settings live in `pyproject.toml`, Swift settings in `.swift-format`.
+
 For changes that touch the network or performance path, run the relevant live command manually and document the video type used. Live tests are not a substitute for deterministic unit tests.
 
 ## Adding or changing behavior

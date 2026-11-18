@@ -8,7 +8,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.cache import Cache  # noqa: E402
+from ytt.cache import Cache
 
 
 class TestCache(unittest.TestCase):

@@ -7,10 +7,10 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.cache import Cache  # noqa: E402
-from ytt.captions import parse_any  # noqa: E402
-from ytt.util import Log  # noqa: E402
-from ytt.youtube import Track, YouTube  # noqa: E402
+from ytt.cache import Cache
+from ytt.captions import parse_any
+from ytt.util import Log
+from ytt.youtube import Track, YouTube
 
 VTT = "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nhello world\n"
 

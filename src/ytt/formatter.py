@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .model import Transcript
 from .segments import Segment, merge_paragraphs
@@ -114,7 +114,7 @@ def render_md(t: Transcript, timestamps: bool = True) -> str:
         ("Channel", t.channel or "—"),
         ("Duration", fmt_duration(t.duration_ms) if t.duration_ms else "—"),
         ("Transcript", t.label()),
-        ("Segments", "{:,}".format(len(t.segments))),
+        ("Segments", f"{len(t.segments):,}"),
     ]
     if t.extra.get("rewritten_from"):  # [AI-GENERATED] rewrite provenance
         meta.insert(4, ("Rewritten from", t.extra["rewritten_from"]))
