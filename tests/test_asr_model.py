@@ -31,7 +31,12 @@ class TestResolveModel(unittest.TestCase):
     def test_missing_model_raises_with_download_hint(self):
         with self.assertRaises(asr.ASRUnavailable) as ctx:
             asr.resolve_model("small.en", [self.tmp.name])
-        self.assertIn("whisper-cpp-download-ggml-model small.en", str(ctx.exception))
+        message = str(ctx.exception)
+        # Homebrew's whisper-cpp ships no download script, so the hint is a plain curl.
+        self.assertNotIn("whisper-cpp-download-ggml-model", message)
+        self.assertIn("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
+                      message)
+        self.assertIn("~/.cache/whisper/ggml-small.en.bin", message)
 
     def test_env_dir_is_searched_first(self):
         with mock.patch.dict(os.environ, {"YTT_MODEL_DIR": self.tmp.name}):

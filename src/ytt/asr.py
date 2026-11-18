@@ -71,6 +71,19 @@ def model_search_dirs() -> List[str]:
     return dirs
 
 
+WHISPER_CPP_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-%s.bin"
+
+
+def whisper_cpp_download_command(model: str) -> str:
+    """Shell command that fetches a ggml model into ~/.cache/whisper.
+
+    Homebrew's whisper-cpp formula ships no download script, so this is a
+    plain curl that works anywhere.
+    """
+    return ("mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-%s.bin %s"
+            % (model, WHISPER_CPP_MODEL_URL % model))
+
+
 def resolve_model(model: str, search_dirs: Optional[List[str]] = None) -> str:
     """Turn a model name like ``small.en`` into a ggml model file path.
 
@@ -90,9 +103,9 @@ def resolve_model(model: str, search_dirs: Optional[List[str]] = None) -> str:
                 return path
     raise ASRUnavailable(
         "whisper.cpp model %r not found. Download it with:\n"
-        "  whisper-cpp-download-ggml-model %s\n"
+        "  %s\n"
         "then pass its path with --model, or put it in one of:\n  %s"
-        % (model, model, "\n  ".join(dirs))
+        % (model, whisper_cpp_download_command(model), "\n  ".join(dirs))
     )
 
 
@@ -211,7 +224,7 @@ def transcribe_audio(
             hint = "  brew install yt-dlp ffmpeg\n  pipx install mlx-whisper"
         else:
             hint = ("  brew install yt-dlp ffmpeg whisper-cpp\n"
-                    "then download a model:\n  whisper-cpp-download-ggml-model %s" % model)
+                    "then download a model:\n  %s" % whisper_cpp_download_command(model))
         raise ASRUnavailable("ASR fallback needs %s. Install with:\n%s"
                              % (", ".join(missing), hint))
 
