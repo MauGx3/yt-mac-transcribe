@@ -21,7 +21,9 @@ The local ASR fallback is optional:
 
 ```bash
 brew install ffmpeg whisper-cpp
-whisper-cpp-download-ggml-model small.en
+mkdir -p ~/.cache/whisper
+curl -L -o ~/.cache/whisper/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 ```
 
 `ytt --model small.en` looks for `small.en` or `ggml-small.en.bin` in these

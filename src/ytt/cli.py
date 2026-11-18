@@ -335,8 +335,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.download_model:
         if args.engine == "whisper-cpp":
-            log.error("--download-model is for the mlx engine; whisper.cpp models are "
-                      "fetched with whisper-cpp-download-ggml-model")
+            log.error("--download-model is for the mlx engine; fetch a whisper.cpp model with:\n  %s"
+                      % asr_mod.whisper_cpp_download_command(args.model))
             return 2
         try:
             repo = asr_mod.download_mlx_model(args.model, log)
