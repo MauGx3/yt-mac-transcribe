@@ -223,7 +223,8 @@ def process_one(
             t0 = Timer()
             try:
                 payload, fmt = yt.fetch_track(track, url)
-                segments = parse_any(payload, fmt or track.best_format)
+                # fmt is None when unknown; parse_any then sniffs the payload.
+                segments = parse_any(payload, fmt)
                 problems = quality_report(segments, int((meta.get("duration") or 0) * 1000))
                 log.debug("captions fetched in %s · %d segments · track %s (%s)" % (
                     fmt_elapsed(t0.ms), len(segments), track.lang, track.kind))
@@ -356,9 +357,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         attempts = max(1, args.retries + 1)
         transcript = None
         paths: List[str] = []
+        succeeded = False
         for attempt in range(attempts):
             try:
                 transcript, paths = process_one(url, args, log, multi, cache)
+                # --list-tracks returns no transcript but is still a success.
+                succeeded = transcript is not None or args.list_tracks
                 break
             except (VideoError, YtDlpMissing) as exc:
                 log.error(str(exc))
@@ -389,7 +393,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 log.error("%s: %s" % (type(exc).__name__, exc))
                 failed.append(url)
                 break
-        if transcript:
+        if succeeded:
             ok += 1
             for p in paths:
                 print(p)

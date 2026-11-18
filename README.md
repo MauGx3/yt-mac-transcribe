@@ -24,6 +24,17 @@ brew install ffmpeg whisper-cpp
 whisper-cpp-download-ggml-model small.en
 ```
 
+`ytt --model small.en` looks for `small.en` or `ggml-small.en.bin` in these
+folders, in order:
+
+1. `$YTT_MODEL_DIR`, if set
+2. the current folder, then `./models`
+3. `~/.cache/whisper`, then `~/.cache/whisper.cpp`
+4. `/opt/homebrew/share/whisper-cpp` and its `models` subfolder
+5. `/usr/local/share/whisper-cpp` and its `models` subfolder
+
+You can also pass the file path directly with `--model`.
+
 ### Install `ytt`
 
 ```bash

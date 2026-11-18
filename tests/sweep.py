@@ -77,7 +77,7 @@ def main():
 
         try:
             payload, fmt = yt.fetch_track(track, url)
-            segs = parse_any(payload, fmt or track.best_format)
+            segs = parse_any(payload, fmt)
         except Exception as exc:
             if "429" in str(exc):
                 print("%2d. %-12s THROTTLED    %s" % (i, vid, title))
