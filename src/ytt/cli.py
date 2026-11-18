@@ -1,10 +1,11 @@
 """Command-line interface for yt-transcribe."""
+
 from __future__ import annotations
 
 import argparse
-import time
 import os
 import sys
+import time
 from typing import List, Optional, Tuple
 
 from . import __version__
@@ -16,7 +17,7 @@ from .model import Transcript
 from .rewriter import rewrite_transcript
 from .segments import quality_report
 from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filename
-from .youtube import RateLimited, VideoError, YtDlpMissing, YouTube
+from .youtube import RateLimited, VideoError, YouTube, YtDlpMissing
 
 DEFAULT_LANGS = ["en"]
 # Exit code when a batch or playlist run wrote some transcripts but not all.
@@ -27,70 +28,137 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="ytt",
         description="YouTube transcripts in seconds — uses YouTube's own caption "
-                    "tracks by default, with local whisper.cpp as a fallback.",
+        "tracks by default, with local whisper.cpp as a fallback.",
         epilog="Examples:\n"
-               "  ytt https://youtu.be/aircAruvnKk\n"
-               "  ytt <url> -f srt vtt json -o ~/Downloads\n"
-               "  ytt <url> --langs pt,en --asr auto\n"
-               "  ytt --batch urls.txt -o transcripts/\n",
+        "  ytt https://youtu.be/aircAruvnKk\n"
+        "  ytt <url> -f srt vtt json -o ~/Downloads\n"
+        "  ytt <url> --langs pt,en --asr auto\n"
+        "  ytt --batch urls.txt -o transcripts/\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("urls", nargs="*", help="YouTube video or playlist URLs")
-    p.add_argument("-f", "--format", nargs="+", default=["txt"], choices=list(FORMATS),
-                   metavar="FMT", help="output formats: %s (default: txt)" % ", ".join(FORMATS))
+    p.add_argument(
+        "-f",
+        "--format",
+        nargs="+",
+        default=["txt"],
+        choices=list(FORMATS),
+        metavar="FMT",
+        help="output formats: %s (default: txt)" % ", ".join(FORMATS),
+    )
     p.add_argument("-o", "--out", default=".", help="output directory or file path")
-    p.add_argument("-l", "--langs", default=",".join(DEFAULT_LANGS),
-                   help="comma-separated language preference, e.g. 'pt,en' (default: en)")
-    p.add_argument("-m", "--model", default=asr_mod.DEFAULT_MODEL,
-                   help="ASR model: a short name (%s), a whisper.cpp .bin path, "
-                        "or an MLX repo id (default: %%(default)s)" % ", ".join(asr_mod.MLX_MODELS))
-    p.add_argument("--engine", choices=list(asr_mod.ENGINES), default="auto",
-                   help="ASR engine: whisper-cpp, mlx (mlx-whisper, Apple Silicon), "
-                        "or auto = whichever is installed, whisper.cpp first (default)")
-    p.add_argument("--download-model", action="store_true",
-                   help="download the --model for --engine mlx now, then exit")
-    p.add_argument("--list-models", action="store_true",
-                   help="list known models and whether each MLX model is downloaded, then exit")
-    p.add_argument("--asr", choices=["never", "auto", "always"], default="auto",
-                   help="local ASR usage: auto escalates only when captions are "
-                        "missing/unusable (default), never, or always")
-    p.add_argument("--timestamps", action="store_true",
-                   help="include [mm:ss] stamps in txt/md output")
-    p.add_argument("--raw", action="store_true",
-                   help="skip paragraph reflow; one line per caption cue")
-    p.add_argument("--drop-sound-tags", action="store_true",
-                   help="remove [Music], (applause) style annotations")
-    p.add_argument("--list-tracks", action="store_true",
-                   help="list available caption tracks and exit")
-    p.add_argument("--batch", metavar="FILE",
-                   help="read URLs from a file (one per line, # comments allowed)")
-    p.add_argument("--playlist", action="store_true",
-                   help="expand playlist URLs into individual videos")
+    p.add_argument(
+        "-l",
+        "--langs",
+        default=",".join(DEFAULT_LANGS),
+        help="comma-separated language preference, e.g. 'pt,en' (default: en)",
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=asr_mod.DEFAULT_MODEL,
+        help="ASR model: a short name (%s), a whisper.cpp .bin path, "
+        "or an MLX repo id (default: %%(default)s)" % ", ".join(asr_mod.MLX_MODELS),
+    )
+    p.add_argument(
+        "--engine",
+        choices=list(asr_mod.ENGINES),
+        default="auto",
+        help="ASR engine: whisper-cpp, mlx (mlx-whisper, Apple Silicon), "
+        "or auto = whichever is installed, whisper.cpp first (default)",
+    )
+    p.add_argument(
+        "--download-model",
+        action="store_true",
+        help="download the --model for --engine mlx now, then exit",
+    )
+    p.add_argument(
+        "--list-models",
+        action="store_true",
+        help="list known models and whether each MLX model is downloaded, then exit",
+    )
+    p.add_argument(
+        "--asr",
+        choices=["never", "auto", "always"],
+        default="auto",
+        help="local ASR usage: auto escalates only when captions are "
+        "missing/unusable (default), never, or always",
+    )
+    p.add_argument(
+        "--timestamps", action="store_true", help="include [mm:ss] stamps in txt/md output"
+    )
+    p.add_argument(
+        "--raw", action="store_true", help="skip paragraph reflow; one line per caption cue"
+    )
+    p.add_argument(
+        "--drop-sound-tags",
+        action="store_true",
+        help="remove [Music], (applause) style annotations",
+    )
+    p.add_argument(
+        "--list-tracks", action="store_true", help="list available caption tracks and exit"
+    )
+    p.add_argument(
+        "--batch", metavar="FILE", help="read URLs from a file (one per line, # comments allowed)"
+    )
+    p.add_argument(
+        "--playlist", action="store_true", help="expand playlist URLs into individual videos"
+    )
     p.add_argument("-q", "--quiet", action="store_true", help="suppress progress output")
     p.add_argument("-v", "--verbose", action="store_true", help="show debug detail")
-    p.add_argument("--cookies-from-browser", metavar="BROWSER",
-                   help="pass through to yt-dlp for age/region-restricted videos")
-    p.add_argument("--delay", type=float, default=1.0, metavar="SECS",
-                   help="pause between videos in batch/playlist runs to avoid "
-                        "HTTP 429 throttling (default: %(default)s)")
-    p.add_argument("--retries", type=int, default=1,
-                   help="retry a failed video this many times (default: %(default)s)")
+    p.add_argument(
+        "--cookies-from-browser",
+        metavar="BROWSER",
+        help="pass through to yt-dlp for age/region-restricted videos",
+    )
+    p.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        metavar="SECS",
+        help="pause between videos in batch/playlist runs to avoid "
+        "HTTP 429 throttling (default: %(default)s)",
+    )
+    p.add_argument(
+        "--retries",
+        type=int,
+        default=1,
+        help="retry a failed video this many times (default: %(default)s)",
+    )
     p.add_argument("--stats", action="store_true", help="print a timing summary")
-    p.add_argument("--no-cache", action="store_true",
-                   help="bypass the on-disk caption/metadata cache")
-    p.add_argument("--clear-cache", action="store_true",
-                   help="delete cached caption and metadata payloads, then exit")
-    p.add_argument("--cache-ttl", type=int, default=DEFAULT_TTL, metavar="SECS",
-                   help="cache lifetime in seconds (default: %(default)s)")
-    p.add_argument("--rewrite-timeout", type=int, default=300, metavar="SECS",
-                   help="local rewrite command timeout (default: %(default)s)")
+    p.add_argument(
+        "--no-cache", action="store_true", help="bypass the on-disk caption/metadata cache"
+    )
+    p.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="delete cached caption and metadata payloads, then exit",
+    )
+    p.add_argument(
+        "--cache-ttl",
+        type=int,
+        default=DEFAULT_TTL,
+        metavar="SECS",
+        help="cache lifetime in seconds (default: %(default)s)",
+    )
+    p.add_argument(
+        "--rewrite-timeout",
+        type=int,
+        default=300,
+        metavar="SECS",
+        help="local rewrite command timeout (default: %(default)s)",
+    )
     # [AI-GENERATED] REMAINDER keeps runner flags such as `--model` out of
     # ytt's own parser, so this option must be the last one on the line.
-    p.add_argument("--rewrite-command", nargs=argparse.REMAINDER, metavar="CMD",
-                   help="run a local context-aware rewriter after transcription; "
-                        "must be the LAST option, everything after it is passed "
-                        "to the command, which reads JSON on stdin and writes "
-                        "JSON on stdout")
+    p.add_argument(
+        "--rewrite-command",
+        nargs=argparse.REMAINDER,
+        metavar="CMD",
+        help="run a local context-aware rewriter after transcription; "
+        "must be the LAST option, everything after it is passed "
+        "to the command, which reads JSON on stdin and writes "
+        "JSON on stdout",
+    )
     p.add_argument("--version", action="version", version="ytt " + __version__)
     return p
 
@@ -109,7 +177,7 @@ class RewriteFailed(RuntimeError):
 def collect_urls(args) -> List[str]:
     urls = list(args.urls)
     if args.batch:
-        with open(args.batch, "r", encoding="utf-8") as fh:
+        with open(args.batch, encoding="utf-8") as fh:
             for line in fh:
                 line = line.split("#", 1)[0].strip()
                 if line:
@@ -152,8 +220,9 @@ def rewritten_output_path(path: str) -> str:
     return root + ".rewritten" + ext
 
 
-def _write_formats(t: Transcript, args, title: str, vid: str, multi: bool,
-                   log: Log, companion: bool) -> List[str]:
+def _write_formats(
+    t: Transcript, args, title: str, vid: str, multi: bool, log: Log, companion: bool
+) -> List[str]:
     written: List[str] = []
     for fmt in args.format:
         path = output_path(args.out, title, vid, fmt, multi)
@@ -172,8 +241,9 @@ def _write_formats(t: Transcript, args, title: str, vid: str, multi: bool,
     return written
 
 
-def write_outputs(transcript: Transcript, args, title: str, vid: str,
-                  multi: bool, log: Log) -> List[str]:
+def write_outputs(
+    transcript: Transcript, args, title: str, vid: str, multi: bool, log: Log
+) -> List[str]:
     """[AI-GENERATED] Write originals first, then optional rewrite companions.
 
     Originals are always persisted before the rewriter runs, so a failing or
@@ -210,8 +280,13 @@ def process_one(
     title = meta.get("title") or vid
     log.info("▸ %s" % title)
     if meta.get("duration"):
-        log.info("  %s · %s" % (meta.get("uploader") or "unknown channel",
-                                fmt_duration(int(meta["duration"]) * 1000)))
+        log.info(
+            "  %s · %s"
+            % (
+                meta.get("uploader") or "unknown channel",
+                fmt_duration(int(meta["duration"]) * 1000),
+            )
+        )
 
     tracks = yt.tracks(meta)
     if args.list_tracks:
@@ -236,16 +311,20 @@ def process_one(
                 # fmt is None when unknown; parse_any then sniffs the payload.
                 segments = parse_any(payload, fmt)
                 problems = quality_report(segments, int((meta.get("duration") or 0) * 1000))
-                log.debug("captions fetched in %s · %d segments · track %s (%s)" % (
-                    fmt_elapsed(t0.ms), len(segments), track.lang, track.kind))
+                log.debug(
+                    "captions fetched in %s · %d segments · track %s (%s)"
+                    % (fmt_elapsed(t0.ms), len(segments), track.lang, track.kind)
+                )
                 if problems:
                     warnings.extend(problems)
                     log.debug("caption quality issues: " + "; ".join(problems))
                     if args.asr == "never":
                         pass
                     else:
-                        log.info("  captions look unusable (%s) → escalating to local ASR"
-                                 % "; ".join(problems))
+                        log.info(
+                            "  captions look unusable (%s) → escalating to local ASR"
+                            % "; ".join(problems)
+                        )
                         segments = []
                 if segments:
                     transcript = Transcript(
@@ -260,8 +339,10 @@ def process_one(
                         kind=track.kind,
                         engine="captions",
                     )
-                    log.info("  ✓ %s captions · %s words · %s" % (
-                        track.kind, fmt_int(transcript.words), fmt_elapsed(t0.ms)))
+                    log.info(
+                        "  ✓ %s captions · %s words · %s"
+                        % (track.kind, fmt_int(transcript.words), fmt_elapsed(t0.ms))
+                    )
             except RateLimited:
                 # A per-IP throttle is not "no captions" — let main() back off.
                 raise
@@ -271,20 +352,25 @@ def process_one(
 
     if transcript is None and args.asr != "never":
         if not asr_mod.asr_ready(args.engine):
-            log.warn("no usable captions and the local ASR fallback is not installed")
+            log.warning("no usable captions and the local ASR fallback is not installed")
             for k, v in asr_mod.detect_backends().items():
                 log.info("    %-16s %s" % (k, v or "not found"))
-            log.info("  install with: brew install yt-dlp ffmpeg whisper-cpp"
-                     "  (or: pipx install mlx-whisper, then --engine mlx)")
+            log.info(
+                "  install with: brew install yt-dlp ffmpeg whisper-cpp"
+                "  (or: pipx install mlx-whisper, then --engine mlx)"
+            )
             return None, []
         t0 = Timer()
         try:
-            segments = asr_mod.transcribe_audio(url, args.model, log, lang=langs[0] if langs else "auto",
-                                            engine=args.engine)
-            transcript = asr_mod.transcript_from_asr(meta, segments, args.model,
-                                                     lang=langs[0] if langs else "auto")
-            log.info("  ✓ local ASR · %s words · %s" % (
-                fmt_int(transcript.words), fmt_elapsed(t0.ms)))
+            segments = asr_mod.transcribe_audio(
+                url, args.model, log, lang=langs[0] if langs else "auto", engine=args.engine
+            )
+            transcript = asr_mod.transcript_from_asr(
+                meta, segments, args.model, lang=langs[0] if langs else "auto"
+            )
+            log.info(
+                "  ✓ local ASR · %s words · %s" % (fmt_int(transcript.words), fmt_elapsed(t0.ms))
+            )
         except Exception as exc:
             log.error("ASR fallback failed: %s" % exc)
             return None, []
@@ -296,6 +382,7 @@ def process_one(
     transcript.warnings = warnings
     if args.drop_sound_tags:
         from .segments import strip_sound_tags
+
         transcript.segments = strip_sound_tags(transcript.segments)
         if not transcript.segments:
             log.error("nothing left after removing sound tags")
@@ -304,9 +391,15 @@ def process_one(
     written = write_outputs(transcript, args, title, vid, multi, log)
 
     if args.stats:
-        log.info("  total %s · %s segments · %s words · %s chars" % (
-            fmt_elapsed(timer.ms), fmt_int(len(transcript.segments)),
-            fmt_int(transcript.words), fmt_int(transcript.chars)))
+        log.info(
+            "  total %s · %s segments · %s words · %s chars"
+            % (
+                fmt_elapsed(timer.ms),
+                fmt_int(len(transcript.segments)),
+                fmt_int(transcript.words),
+                fmt_int(transcript.chars),
+            )
+        )
     return transcript, written
 
 
@@ -317,6 +410,7 @@ def _render_raw(t: Transcript, fmt: str, timestamps: bool) -> str:
         return head + body + "\n"
     if timestamps:
         from .util import fmt_duration
+
         return "\n".join("[%s] %s" % (fmt_duration(s.start_ms), s.text) for s in t.segments) + "\n"
     return t.plain_text() + "\n"
 
@@ -335,8 +429,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.download_model:
         if args.engine == "whisper-cpp":
-            log.error("--download-model is for the mlx engine; fetch a whisper.cpp model with:\n  %s"
-                      % asr_mod.whisper_cpp_download_command(args.model))
+            log.error(
+                "--download-model is for the mlx engine; fetch a whisper.cpp model with:\n  %s"
+                % asr_mod.whisper_cpp_download_command(args.model)
+            )
             return 2
         try:
             repo = asr_mod.download_mlx_model(args.model, log)
@@ -372,7 +468,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 expanded.extend("https://www.youtube.com/watch?v=%s" % i for i in ids)
                 continue
             except Exception as exc:
-                log.warn("could not expand playlist (%s); treating as a single video" % exc)
+                log.warning("could not expand playlist (%s); treating as a single video" % exc)
         expanded.append(url)
 
     multi = len(expanded) > 1
@@ -398,14 +494,18 @@ def main(argv: Optional[List[str]] = None) -> int:
                 log.error(str(exc))
                 if attempt + 1 < attempts and "429" in str(exc):
                     # Throttles usually clear within a minute or two.
-                    wait = min(120, 15 * (3 ** attempt))
-                    log.info("  rate-limited; retrying in %ds (attempt %d/%d)…"
-                             % (wait, attempt + 1, attempts))
+                    wait = min(120, 15 * (3**attempt))
+                    log.info(
+                        "  rate-limited; retrying in %ds (attempt %d/%d)…"
+                        % (wait, attempt + 1, attempts)
+                    )
                     time.sleep(wait)
                     continue
                 if "429" in str(exc):
-                    log.info("  YouTube is throttling this IP. Wait a few minutes, "
-                             "or retry with --cookies-from-browser chrome")
+                    log.info(
+                        "  YouTube is throttling this IP. Wait a few minutes, "
+                        "or retry with --cookies-from-browser chrome"
+                    )
                 failed.append(url)
                 break
             except RewriteFailed as exc:

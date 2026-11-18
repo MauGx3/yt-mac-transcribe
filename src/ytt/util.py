@@ -1,4 +1,5 @@
 """Small shared helpers: logging, timing, formatting."""
+
 from __future__ import annotations
 
 import re
@@ -39,7 +40,7 @@ class Timer:
 
 def fmt_duration(ms: int) -> str:
     """1120000 -> '18:40'  (or '1:02:03' past an hour)."""
-    s = max(0, int(round(ms / 1000.0)))
+    s = max(0, round(ms / 1000.0))
     h, rem = divmod(s, 3600)
     m, s = divmod(rem, 60)
     if h:
@@ -56,7 +57,7 @@ def fmt_elapsed(ms: int) -> str:
 
 
 def fmt_int(n: int) -> str:
-    return "{:,}".format(n)
+    return f"{n:,}"
 
 
 def sanitize_filename(name: str, max_len: int = 80) -> str:
@@ -65,7 +66,7 @@ def sanitize_filename(name: str, max_len: int = 80) -> str:
     for ch in name:
         if ch.isalnum() or ch in " -_()[]&,+.'":
             keep.append(ch)
-        elif ch in "/\\:|*?\"<>":
+        elif ch in '/\\:|*?"<>':
             keep.append("-")
         elif ch.isspace():
             keep.append(" ")

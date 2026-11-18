@@ -1,17 +1,23 @@
 """Unit tests for caption-track selection. No network required."""
+
 import os
 import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ytt.util import Log  # noqa: E402
-from ytt.youtube import Track, YouTube  # noqa: E402
+from ytt.util import Log
+from ytt.youtube import Track, YouTube
 
 
 def mk(lang, kind, fmts=("json3", "vtt")):
-    return Track(lang=lang, name=lang, kind=kind,
-                 formats=list(fmts), urls={f: "http://x/%s.%s" % (lang, f) for f in fmts})
+    return Track(
+        lang=lang,
+        name=lang,
+        kind=kind,
+        formats=list(fmts),
+        urls={f: "http://x/%s.%s" % (lang, f) for f in fmts},
+    )
 
 
 class TestTrackSelection(unittest.TestCase):
@@ -121,6 +127,7 @@ class TestTrackFiltering(unittest.TestCase):
 class TestOutputPaths(unittest.TestCase):
     def setUp(self):
         from ytt.cli import output_path
+
         self.output_path = output_path
 
     def test_directory_target(self):

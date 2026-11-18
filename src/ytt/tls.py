@@ -8,6 +8,7 @@ falls back to yt-dlp for each caption payload, which is many times slower.
 When Python's own store is missing, use certifi if it is installed, otherwise
 the system bundle macOS keeps at /etc/ssl/cert.pem. No new dependency.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,9 +37,12 @@ def _certifi_where() -> Optional[Callable[[], str]]:
     return certifi.where
 
 
-def fallback_ca_file(paths: ssl.DefaultVerifyPaths, env: Mapping[str, str],
-                     certifi_where: Optional[Callable[[], str]],
-                     system_bundles: Iterable[str]) -> Optional[str]:
+def fallback_ca_file(
+    paths: ssl.DefaultVerifyPaths,
+    env: Mapping[str, str],
+    certifi_where: Optional[Callable[[], str]],
+    system_bundles: Iterable[str],
+) -> Optional[str]:
     """CA file to load instead of Python's default, or None to keep the default."""
     if env.get("SSL_CERT_FILE") or env.get("SSL_CERT_DIR"):
         return None  # the user chose a store explicitly
@@ -57,8 +61,9 @@ def fallback_ca_file(paths: ssl.DefaultVerifyPaths, env: Mapping[str, str],
 @lru_cache(maxsize=1)
 def ssl_context() -> Optional[ssl.SSLContext]:
     """Context for urlopen, or None when Python's default store works."""
-    cafile = fallback_ca_file(ssl.get_default_verify_paths(), os.environ,
-                              _certifi_where(), SYSTEM_BUNDLES)
+    cafile = fallback_ca_file(
+        ssl.get_default_verify_paths(), os.environ, _certifi_where(), SYSTEM_BUNDLES
+    )
     if cafile is None:
         return None
     return ssl.create_default_context(cafile=cafile)

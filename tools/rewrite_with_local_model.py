@@ -20,6 +20,7 @@ keeps its original wording).
 
 Diagnostics go to stderr. stdout carries only the response JSON.
 """
+
 import argparse
 import json
 import re
@@ -54,8 +55,8 @@ def chunk_ranges(count, size):
 
 def build_prompt(request, segments, start, end, context):
     """Build the user message for segments[start:end]."""
-    before = [s["text"] for s in segments[max(0, start - context):start]]
-    after = [s["text"] for s in segments[end:end + context]]
+    before = [s["text"] for s in segments[max(0, start - context) : start]]
+    after = [s["text"] for s in segments[end : end + context]]
     lines = [s["text"] for s in segments[start:end]]
     parts = []
     if request.get("title"):
@@ -75,14 +76,12 @@ def build_prompt(request, segments, start, end, context):
             + json.dumps(after, ensure_ascii=False)
         )
     parts.append(
-        "Segments to clean up (%d items):\n%s"
-        % (len(lines), json.dumps(lines, ensure_ascii=False))
+        "Segments to clean up (%d items):\n%s" % (len(lines), json.dumps(lines, ensure_ascii=False))
     )
     parts.append(
         "Return a JSON array of exactly %d strings, one per segment above, in "
         "the same order. Keep each segment about the same length so subtitle "
-        "timing still fits. If a segment needs no change, return it unchanged."
-        % len(lines)
+        "timing still fits. If a segment needs no change, return it unchanged." % len(lines)
     )
     return "\n\n".join(parts)
 
@@ -113,9 +112,7 @@ def parse_response(text, expected):
         else:
             if len(items) == expected:
                 return items
-            raise RewriteError(
-                "model returned %d segments; expected %d" % (len(items), expected)
-            )
+            raise RewriteError("model returned %d segments; expected %d" % (len(items), expected))
     raise RewriteError("model output did not contain a JSON array of strings")
 
 
@@ -125,11 +122,11 @@ class MLXModel:
     def __init__(self, name, max_tokens=None):
         try:
             from mlx_lm import generate, load
-        except ImportError:
+        except ImportError as exc:
             raise SystemExit(
                 "rewrite_with_local_model: mlx-lm is not installed. Install it "
                 "on an Apple silicon Mac with: python3 -m pip install mlx-lm"
-            )
+            ) from exc
         log("loading %s" % name)
         self._generate = generate
         self._model, self._tokenizer = load(name)
@@ -158,8 +155,14 @@ def token_budget(lines):
     return chars // 2 + 16 * len(lines) + 256
 
 
-def rewrite(request, model, chunk_size=DEFAULT_CHUNK_SIZE, context=DEFAULT_CONTEXT,
-            retries=DEFAULT_RETRIES, keep_original_on_failure=False):
+def rewrite(
+    request,
+    model,
+    chunk_size=DEFAULT_CHUNK_SIZE,
+    context=DEFAULT_CONTEXT,
+    retries=DEFAULT_RETRIES,
+    keep_original_on_failure=False,
+):
     """Return the response payload for a ytt rewrite request."""
     segments = request.get("segments")
     if not isinstance(segments, list):
@@ -178,8 +181,7 @@ def rewrite(request, model, chunk_size=DEFAULT_CHUNK_SIZE, context=DEFAULT_CONTE
                 break
             except RewriteError as exc:
                 last_error = exc
-                log("chunk %d/%d attempt %d failed: %s"
-                    % (n, len(ranges), attempt + 1, exc))
+                log("chunk %d/%d attempt %d failed: %s" % (n, len(ranges), attempt + 1, exc))
         if last_error is not None:
             if not keep_original_on_failure:
                 raise last_error
@@ -195,27 +197,37 @@ def parse_args(argv):
         description="ytt rewrite runner that cleans up transcripts with MLX-LM.",
     )
     parser.add_argument(
-        "--model", default=DEFAULT_MODEL,
+        "--model",
+        default=DEFAULT_MODEL,
         help="MLX model repo or local path (default: %(default)s)",
     )
     parser.add_argument(
-        "--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE,
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_CHUNK_SIZE,
         help="segments per model call (default: %(default)s)",
     )
     parser.add_argument(
-        "--context", type=int, default=DEFAULT_CONTEXT,
+        "--context",
+        type=int,
+        default=DEFAULT_CONTEXT,
         help="neighboring segments shown as read-only context (default: %(default)s)",
     )
     parser.add_argument(
-        "--retries", type=int, default=DEFAULT_RETRIES,
+        "--retries",
+        type=int,
+        default=DEFAULT_RETRIES,
         help="extra attempts for a chunk with an invalid reply (default: %(default)s)",
     )
     parser.add_argument(
-        "--max-tokens", type=int, default=None,
+        "--max-tokens",
+        type=int,
+        default=None,
         help="fixed generation limit per chunk (default: estimated from the chunk)",
     )
     parser.add_argument(
-        "--keep-original-on-failure", action="store_true",
+        "--keep-original-on-failure",
+        action="store_true",
         help="keep a chunk's original text instead of failing the whole rewrite",
     )
     return parser.parse_args(argv)
