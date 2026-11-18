@@ -7,11 +7,15 @@ A lightweight SwiftUI wrapper around the existing `ytt` command and a small tran
 
 ## Requirements
 
-- macOS 13 or newer
+- macOS 14 or newer (Liquid Glass on macOS 26)
 - Apple silicon
-- Xcode 15 or newer
+- Xcode 26 or newer for the Liquid Glass look. Xcode 15 and 16 still build the app, with the macOS 14 look everywhere.
 - `yt-dlp` and the `ytt` CLI installed locally
 - Optional local rewrite runner that follows the [`ytt` JSON rewrite protocol](../../docs/local-rewriting.md)
+
+## Liquid Glass
+
+Every Liquid Glass API call lives in `Sources/YTTranscribeApp/GlassCompat.swift`. Views use its helpers (`appGlass(in:)`, `AppGlassContainer`, `appPrimaryButtonStyle()`, `appSecondaryButtonStyle()`), which fall back to materials and bordered buttons on macOS 14 and 15. CI fails if a glass API appears in another file. The file's preview shows both styles side by side.
 
 ## Build and run
 

@@ -209,6 +209,6 @@ MIT. See [`LICENSE`](LICENSE).
 
 A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then asks whether to create a locally reviewed copy. The original and reviewed files are saved together; the app can open either file or reveal them in Finder.
 
-Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 13 or newer on Apple silicon and bundles no model.
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 14 or newer on Apple silicon, and uses Liquid Glass on macOS 26 and bundles no model.
 
 Version 0.1.0 is described in [`CHANGELOG.md`](CHANGELOG.md).

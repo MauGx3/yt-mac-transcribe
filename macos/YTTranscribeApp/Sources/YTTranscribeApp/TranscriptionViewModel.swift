@@ -1,8 +1,9 @@
-import Combine
 import Foundation
+import Observation
 
 @MainActor
-final class TranscriptionViewModel: ObservableObject {
+@Observable
+final class TranscriptionViewModel {
     enum State: Equatable {
         case idle
         case transcribing
@@ -19,8 +20,8 @@ final class TranscriptionViewModel: ObservableObject {
         let files: [TranscriptFiles]
     }
 
-    @Published private(set) var state: State = .idle
-    @Published private(set) var formats: [OutputFormat]
+    private(set) var state: State = .idle
+    private(set) var formats: [OutputFormat]
     private(set) var settings: AppSettings
     var canReview: Bool { !settings.rewriteCommand.isEmpty }
     private let runner: any TranscriptionRunning

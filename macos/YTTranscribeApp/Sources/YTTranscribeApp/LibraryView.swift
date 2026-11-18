@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Browse and search past transcripts.
 struct LibraryView: View {
-    @ObservedObject var library: LibraryStore
+    let library: LibraryStore
     @State private var query = ""
     @State private var searchText = true
 

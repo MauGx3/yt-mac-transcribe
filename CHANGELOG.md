@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The macOS app now needs macOS 14 or newer (was 13). Its view models use
+  Swift Observation (`@Observable`), and CI builds it with Xcode 26 on
+  `macos-26`.
+- Groundwork for the Liquid Glass redesign: `GlassCompat.swift` wraps every
+  macOS 26 glass API with a macOS 14/15 fallback. No visible change yet.
+
 - A batch or playlist run where some videos fail now exits `3` instead of `0`.
   The macOS app accepts `3` for batch and playlist runs and keeps the
   transcripts that were written.

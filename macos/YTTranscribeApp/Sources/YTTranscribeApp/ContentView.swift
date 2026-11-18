@@ -10,7 +10,7 @@ enum InputMode: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
-    @ObservedObject var model: TranscriptionViewModel
+    let model: TranscriptionViewModel
     @State private var url = ""
     @State private var batchText = ""
     @State private var mode: InputMode = .video
@@ -152,10 +152,7 @@ struct ContentView: View {
 }
 
 // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
-// PreviewProvider (not #Preview) keeps compatibility with the macOS 13 target.
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView(model: TranscriptionViewModel(settings: .defaults))
-            .frame(width: 520, height: 340)
-    }
+#Preview {
+    ContentView(model: TranscriptionViewModel(settings: .defaults))
+        .frame(width: 520, height: 340)
 }

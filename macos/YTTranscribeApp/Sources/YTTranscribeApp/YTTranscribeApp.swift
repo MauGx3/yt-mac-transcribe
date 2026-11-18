@@ -2,13 +2,13 @@ import SwiftUI
 
 @main
 struct YTTranscribeApp: App {
-    @StateObject private var library: LibraryStore
-    @StateObject private var model: TranscriptionViewModel
+    @State private var library: LibraryStore
+    @State private var model: TranscriptionViewModel
 
     init() {
         let library = LibraryStore.standard()
-        _library = StateObject(wrappedValue: library)
-        _model = StateObject(wrappedValue: TranscriptionViewModel(settings: .defaults, library: library))
+        _library = State(initialValue: library)
+        _model = State(initialValue: TranscriptionViewModel(settings: .defaults, library: library))
     }
 
     var body: some Scene {
@@ -30,7 +30,7 @@ struct YTTranscribeApp: App {
 }
 
 private struct AppSettingsView: View {
-    @ObservedObject var model: TranscriptionViewModel
+    let model: TranscriptionViewModel
     @State private var yttExecutable = UserDefaults.standard.string(forKey: "yttExecutable") ?? "/opt/homebrew/bin/ytt"
     @State private var rewriteCommand = UserDefaults.standard.string(forKey: "rewriteCommand") ?? ProcessInfo.processInfo.environment["YTT_REWRITE_COMMAND"] ?? ""
     @State private var outputDirectory = UserDefaults.standard.string(forKey: "outputDirectory") ?? AppSettings.defaultOutputDirectory.path

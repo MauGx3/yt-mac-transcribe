@@ -1,5 +1,5 @@
-import Combine
 import Foundation
+import Observation
 
 /// Output formats understood by `ytt -f`.
 enum OutputFormat: String, CaseIterable, Codable, Identifiable {
@@ -79,8 +79,9 @@ enum URLInput {
 
 /// History of transcripts, persisted as JSON.
 @MainActor
-final class LibraryStore: ObservableObject {
-    @Published private(set) var records: [TranscriptRecord] = []
+@Observable
+final class LibraryStore {
+    private(set) var records: [TranscriptRecord] = []
     private let fileURL: URL?
 
     /// `fileURL == nil` keeps the library in memory only.
