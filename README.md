@@ -393,6 +393,11 @@ Other
 **Exit codes**, for scripts: `0` when every video worked, `1` when none did, `2`
 for a mistake in the command or a missing `yt-dlp`, and `3` when a batch or
 playlist saved some transcripts but at least one video failed.
+For `video.srt`, the companion file is `video.rewritten.srt`. The original is never replaced, and it is written before the rewriter runs. To check what the model changed, open `video.review.html` in a browser: it shows each change, marks spots where the model or the speech recognition was unsure, and lets you keep or reject each change and download the result as `video.reviewed.txt`. `--rewrite-command` must be the last option; every argument after it goes to the runner. The runner must read JSON from stdin and write exactly `{"segments": [{"text": "..."}, ...]}` to stdout. `tools/rewrite_with_local_model.py` is a bundled MLX-LM runner (`python3 -m pip install mlx-lm` first; pick a model with `--model`). Any other local runtime, such as llama.cpp or Ollama, can be wrapped the same way. See [`docs/local-rewriting.md`](docs/local-rewriting.md) for the complete protocol and failure behavior.
+
+## Performance model
+
+On the reference 18-minute video, the caption path took about 2.4 seconds in the original benchmark, while a local Whisper pass took roughly 1–4 minutes depending on the model. Repeated runs use the cache and are much faster.
 
 ## Something went wrong?
 
@@ -486,3 +491,11 @@ release checklist. Changes are listed in [`CHANGELOG.md`](CHANGELOG.md).
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+
+## Native macOS app
+
+A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then can create an AI-enhanced copy and open a review screen where you accept or reject each change. The original, enhanced and reviewed files are saved together; the app can open any of them or reveal them in Finder.
+
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 13 or newer on Apple silicon and bundles no model.
+
+Version 0.1.0 is described in [`CHANGELOG.md`](CHANGELOG.md).

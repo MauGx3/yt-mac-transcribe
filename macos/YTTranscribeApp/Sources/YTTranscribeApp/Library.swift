@@ -31,10 +31,25 @@ struct TranscriptRecord: Codable, Identifiable, Equatable {
     var kind: RunKind
     /// Original transcript files, one per requested format.
     var files: [URL]
+    /// The AI-enhanced copy (`.rewritten.*`). The key stays `reviewed` so
+    /// libraries saved by earlier versions still load.
     var reviewed: URL?
+    /// `<name>.review.json`, the diff the review screen opens.
+    var reviewFile: URL? = nil
+    /// `<name>.reviewed.txt`, saved after the user accepted or rejected changes.
+    var reviewedCopy: URL? = nil
+
+    enum ReviewStatus: Equatable {
+        case notEnhanced, needsReview, reviewed
+    }
+
+    var reviewStatus: ReviewStatus {
+        if reviewedCopy != nil { return .reviewed }
+        return reviewFile != nil ? .needsReview : .notEnhanced
+    }
 
     var primaryFile: URL? { files.first }
-    var allFiles: [URL] { files + (reviewed.map { [$0] } ?? []) }
+    var allFiles: [URL] { files + [reviewed, reviewFile, reviewedCopy].compactMap { $0 } }
     var formats: [String] { files.map { $0.pathExtension.lowercased() } }
 
     /// `ytt` names multi-video output `Title [videoid].ext`.
@@ -59,7 +74,8 @@ struct TranscriptRecord: Codable, Identifiable, Equatable {
             createdAt: date,
             kind: kind,
             files: [files.original] + files.extras,
-            reviewed: files.reviewed
+            reviewed: files.reviewed,
+            reviewFile: files.review
         )
     }
 }
@@ -109,6 +125,13 @@ final class LibraryStore: ObservableObject {
     func update(_ record: TranscriptRecord) {
         guard let index = records.firstIndex(where: { $0.id == record.id }) else { return }
         records[index] = record
+        save()
+    }
+
+    /// Records the Reviewed copy saved from the review screen.
+    func markReviewed(reviewFile: URL, copy: URL) {
+        guard let index = records.firstIndex(where: { $0.reviewFile == reviewFile }) else { return }
+        records[index].reviewedCopy = copy
         save()
     }
 

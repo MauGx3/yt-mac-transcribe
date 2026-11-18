@@ -10,6 +10,8 @@ struct TranscriptFiles: Equatable {
     var reviewed: URL?
     /// Originals in the other requested formats.
     var extras: [URL] = []
+    /// `<name>.review.json`, the diff of original vs enhanced text.
+    var review: URL? = nil
 }
 
 enum TranscriptionRunnerError: LocalizedError {
@@ -21,7 +23,7 @@ enum TranscriptionRunnerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .rewriteCommandMissing:
-            return "Configure a local rewrite command in Settings before requesting a reviewed transcript."
+            return "Configure a local rewrite command in Settings before requesting an enhanced transcript."
         case let .commandFailed(status, detail):
             return detail.isEmpty ? "ytt exited with status \(status)." : detail
         case .missingOutput:
@@ -73,13 +75,16 @@ struct TranscriptionRunner: TranscriptionRunning {
         let count = max(1, formatCount)
         let extras = Array(paths.dropFirst().prefix(count - 1))
         let reviewed: URL?
+        var review: URL?
         if case .review = mode {
             guard paths.count > count else { throw TranscriptionRunnerError.missingOutput }
             reviewed = paths[count]
+            // Printed last, after every enhanced copy; older ytt builds omit it.
+            review = paths.dropFirst(count + 1).first { $0.lastPathComponent.hasSuffix(".review.json") }
         } else {
             reviewed = nil
         }
-        return TranscriptFiles(original: original, reviewed: reviewed, extras: extras)
+        return TranscriptFiles(original: original, reviewed: reviewed, extras: extras, review: review)
     }
 
     /// Batch and playlist runs print `formatCount` paths per successful video.
@@ -127,7 +132,7 @@ struct TranscriptionRunner: TranscriptionRunning {
         guard let reviewed = output.reviewed else {
             throw TranscriptionRunnerError.missingOutput
         }
-        return TranscriptFiles(original: output.original, reviewed: reviewed, extras: output.extras)
+        return TranscriptFiles(original: output.original, reviewed: reviewed, extras: output.extras, review: output.review)
     }
 
     func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles] {

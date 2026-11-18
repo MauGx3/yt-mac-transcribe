@@ -217,7 +217,9 @@ def mlx_command(binary: str, repo: str, wav: str, outdir: str, lang: str) -> Lis
         "out",
         "--verbose",
         "False",
-    ]
+        "--word-timestamps",
+        "True",
+    ]  # per-word probability for the review screen
     if lang and lang != "auto":
         cmd += ["--language", lang]
     return cmd
@@ -270,7 +272,7 @@ def transcribe_wav(
         else:
             out_prefix = os.path.join(tmpdir, "out")
             log.info("  [asr] transcribing with whisper.cpp (%s)…" % os.path.basename(model_ref))
-            cmd = [binary, "-m", model_ref, "-f", wav, "-oj", "-of", out_prefix, "-pp"]
+            cmd = [binary, "-m", model_ref, "-f", wav, "-ojf", "-of", out_prefix, "-pp"]
             if lang and lang != "auto":
                 cmd += ["-l", lang]
             label, json_path = "whisper.cpp", out_prefix + ".json"

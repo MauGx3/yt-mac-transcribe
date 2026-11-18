@@ -132,31 +132,99 @@ def parse_srt(text: str) -> List[Segment]:
     return clean_segments(segments)
 
 
+def _prob(value: Any) -> Optional[float]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return max(0.0, min(1.0, float(value)))
+
+
+def _whisper_words(tokens: Any) -> List[Word]:
+    """Group whisper.cpp ``-ojf`` tokens into words.
+
+    A token whose text starts with a space begins a new word; others continue
+    the current one. A word's confidence is its least confident token, so one
+    shaky sub-word marks the whole word. Special tokens ("[_BEG_]",
+    "[_TT_150]", "<|endoftext|>") carry no speech and are skipped.
+    """
+    words: List[Word] = []
+    current: Optional[Word] = None
+    for tok in tokens if isinstance(tokens, list) else []:
+        if not isinstance(tok, dict):
+            continue
+        text = tok.get("text") or ""
+        if not text or text.startswith("[_") or text.startswith("<|"):
+            continue
+        offsets = tok.get("offsets") or {}
+        start, end = int(offsets.get("from") or 0), int(offsets.get("to") or 0)
+        p = _prob(tok.get("p"))
+        if current is None or text[:1].isspace():
+            if not text.strip():
+                continue
+            current = Word(start, end, text.strip(), p)
+            words.append(current)
+            continue
+        current.text += text.strip()
+        current.end_ms = max(current.end_ms, end)
+        if p is not None:
+            current.conf = p if current.conf is None else min(current.conf, p)
+    return words
+
+
 def parse_whisper_json(payload: Dict[str, Any]) -> List[Segment]:
-    """Parse whisper.cpp `-oj` output (offsets are in milliseconds)."""
+    """Parse whisper.cpp ``-oj``/``-ojf`` output (offsets are in milliseconds).
+
+    With ``-ojf`` each segment also lists its tokens with a probability
+    ``p``; those become the segment's words with a confidence.
+    """
     segments: List[Segment] = []
     for item in payload.get("transcription") or []:
         offsets = item.get("offsets") or {}
         text = normalize_text(item.get("text") or "")
         if not text:
             continue
-        segments.append(Segment(int(offsets.get("from") or 0), int(offsets.get("to") or 0), text))
+        segments.append(
+            Segment(
+                int(offsets.get("from") or 0),
+                int(offsets.get("to") or 0),
+                text,
+                _whisper_words(item.get("tokens")),
+            )
+        )
     return clean_segments(segments)
 
 
+def _seconds_ms(value: Any) -> int:
+    try:
+        return round(float(value or 0) * 1000)
+    except (TypeError, ValueError):
+        return 0
+
+
 def parse_mlx_json(payload: Dict[str, Any]) -> List[Segment]:
-    """Parse mlx_whisper ``-f json`` output (segment times are in seconds)."""
+    """Parse mlx_whisper ``-f json`` output (segment times are in seconds).
+
+    With ``--word-timestamps True`` each segment lists its words with a
+    ``probability``; those become the segment's words with a confidence.
+    """
     segments: List[Segment] = []
     for item in payload.get("segments") or []:
         text = normalize_text(item.get("text") or "")
         if not text:
             continue
-        segments.append(
-            Segment(
-                round(float(item.get("start") or 0) * 1000),
-                round(float(item.get("end") or 0) * 1000),
-                text,
+        words = []
+        for w in item.get("words") or []:
+            if not isinstance(w, dict) or not str(w.get("word") or "").strip():
+                continue
+            words.append(
+                Word(
+                    _seconds_ms(w.get("start")),
+                    _seconds_ms(w.get("end")),
+                    str(w["word"]).strip(),
+                    _prob(w.get("probability")),
+                )
             )
+        segments.append(
+            Segment(_seconds_ms(item.get("start")), _seconds_ms(item.get("end")), text, words)
         )
     return clean_segments(segments)
 
