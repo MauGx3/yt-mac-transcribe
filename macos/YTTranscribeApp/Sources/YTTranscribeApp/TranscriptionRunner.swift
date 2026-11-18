@@ -199,9 +199,12 @@ struct TranscriptionRunner: TranscriptionRunning {
 
     // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
     // GUI apps inherit a minimal PATH, but `ytt` looks up `yt-dlp` (and the
-    // optional ASR tools) on PATH, so Homebrew locations are prepended here.
+    // optional ASR tools) on PATH, so Homebrew locations are prepended here,
+    // plus ~/.local/bin where `pipx install mlx-whisper` puts its commands.
     static func processEnvironment(base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-        let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        let home = base["HOME"] ?? NSHomeDirectory()
+        let pipxBin = (home as NSString).appendingPathComponent(".local/bin")
+        let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin", pipxBin, "/usr/bin", "/bin"]
         var env = base
         let existing = (base["PATH"] ?? "").split(separator: ":").map(String.init)
         env["PATH"] = (toolDirectories + existing.filter { !toolDirectories.contains($0) }).joined(separator: ":")
