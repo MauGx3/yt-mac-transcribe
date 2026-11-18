@@ -12,3 +12,24 @@ dist/
 xcuserdata/
 DerivedData/
 *.xcuserstate
+
+# Local secrets and environment
+.env
+.env.*
+
+# Transcripts and media produced while testing (keep out of the repo)
+/*.txt
+/*.srt
+/*.vtt
+/*.json
+/*.md.out
+*.mp3
+*.m4a
+*.wav
+*.webm
+*.mp4
+
+# Local models
+*.bin
+*.gguf
+*.safetensors
