@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 <!-- [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review. -->
 
+## [Unreleased]
+
+### Added
+
+- `tools/rewrite_with_local_model.py`: MLX-LM runner for `--rewrite-command`,
+  referenced by the README but previously missing.
+
 ## [0.1.0] - 2026-11-03
 
 First packaged release: the `ytt` command-line transcriber and a native macOS app.

@@ -102,6 +102,18 @@ json.dump({"segments": rewritten}, sys.stdout, ensure_ascii=False)
 
 For a real runner, pass `request["segments"]` as structured context to the local model, validate that the response contains the same number of segments, and emit only the required JSON object. Diagnostics should go to stderr so stdout remains parseable JSON.
 
+## Bundled MLX-LM runner
+
+`tools/rewrite_with_local_model.py` is a ready-made runner for Apple silicon. It needs `mlx-lm`, which is installed separately and is not a dependency of `ytt`:
+
+```bash
+python3 -m pip install mlx-lm
+ytt URL -f txt srt --rewrite-command \
+  python3 tools/rewrite_with_local_model.py --model mlx-community/Qwen2.5-7B-Instruct-4bit
+```
+
+Options: `--model` (default `mlx-community/Qwen2.5-3B-Instruct-4bit`), `--chunk-size`, `--context`, `--retries`, `--max-tokens`, and `--keep-original-on-failure`. The first run downloads the model from Hugging Face. The transcript is sent in chunks with a few neighboring segments as read-only context, and a chunk whose reply has the wrong segment count is retried. If it still fails, the runner exits non-zero (or keeps that chunk's original text with `--keep-original-on-failure`). Remember to put `--rewrite-timeout` before `--rewrite-command` for long videos.
+
 ## Failure behavior
 
 - A non-zero runner exit code fails the video rewrite.
