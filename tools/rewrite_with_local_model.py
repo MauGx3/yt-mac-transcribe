@@ -23,10 +23,30 @@ Diagnostics go to stderr. stdout carries only the response JSON.
 
 import argparse
 import json
+import os
 import re
 import sys
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
+
+
+def saved_model():
+    """Model picked with ``ytt demo``: $YTT_LLM_MODEL, then the ytt config file."""
+    env = os.environ.get("YTT_LLM_MODEL")
+    if env:
+        return env
+    path = os.environ.get("YTT_CONFIG")
+    if not path:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+        path = os.path.join(base, "ytt", "config.json")
+    try:
+        with open(os.path.expanduser(path), encoding="utf-8") as fh:
+            value = json.load(fh).get("llm_model")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return value if isinstance(value, str) and value else None
+
+
 DEFAULT_CHUNK_SIZE = 40
 DEFAULT_CONTEXT = 3
 DEFAULT_RETRIES = 1
@@ -198,8 +218,9 @@ def parse_args(argv):
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help="MLX model repo or local path (default: %(default)s)",
+        default=saved_model() or DEFAULT_MODEL,
+        help="MLX model repo or local path (default: %(default)s; "
+        "set with `ytt demo` or $YTT_LLM_MODEL)",
     )
     parser.add_argument(
         "--chunk-size",
