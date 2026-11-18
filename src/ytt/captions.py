@@ -145,6 +145,18 @@ def parse_whisper_json(payload: Dict[str, Any]) -> List[Segment]:
     return clean_segments(segments)
 
 
+def parse_mlx_json(payload: Dict[str, Any]) -> List[Segment]:
+    """Parse mlx_whisper ``-f json`` output (segment times are in seconds)."""
+    segments: List[Segment] = []
+    for item in payload.get("segments") or []:
+        text = normalize_text(item.get("text") or "")
+        if not text:
+            continue
+        segments.append(Segment(int(round(float(item.get("start") or 0) * 1000)),
+                                int(round(float(item.get("end") or 0) * 1000)), text))
+    return clean_segments(segments)
+
+
 def detect_format(payload: str) -> str:
     head = payload.lstrip()[:400]
     if head.startswith("WEBVTT"):
