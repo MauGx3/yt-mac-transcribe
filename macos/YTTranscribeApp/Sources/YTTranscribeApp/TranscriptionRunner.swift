@@ -92,7 +92,8 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     static func arguments(for mode: TranscriptionMode, url: String, settings: AppSettings) -> [String] {
-        var args = [url, "-f", "txt", "-o", settings.outputDirectory.path]
+        var args = [url, "-f"] + settings.effectiveFormats.map(\.rawValue)
+            + ["-o", settings.outputDirectory.path] + asrArguments(settings)
         if case .review = mode {
             args += ["--rewrite-command"] + settings.rewriteCommand
         }
@@ -103,6 +104,12 @@ struct TranscriptionRunner: TranscriptionRunning {
     static func batchArguments(urls: [String], playlist: Bool, settings: AppSettings) -> [String] {
         (playlist ? ["--playlist"] : []) + urls
             + ["-f"] + settings.effectiveFormats.map(\.rawValue) + ["-o", settings.outputDirectory.path]
+            + asrArguments(settings)
+    }
+
+    /// Speech engine and model, used when a video has no usable captions.
+    static func asrArguments(_ settings: AppSettings) -> [String] {
+        ["--engine", settings.engine.rawValue, "--model", settings.model]
     }
 
     func transcribe(url: String, settings: AppSettings) async throws -> TranscriptFiles {
