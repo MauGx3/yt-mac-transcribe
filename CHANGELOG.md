@@ -5,12 +5,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 <!-- [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review. -->
 
-## [Unreleased]
-
-### Added
-
-- `mlx-whisper` ASR engine: `--engine`, `--download-model`, `--list-models`, and engine/model pickers in the macOS app.
-
 ## [0.1.0] - 2026-11-03
 
 First packaged release: the `ytt` command-line transcriber and a native macOS app.

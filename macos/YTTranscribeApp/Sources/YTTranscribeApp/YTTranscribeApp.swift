@@ -2,12 +2,24 @@ import SwiftUI
 
 @main
 struct YTTranscribeApp: App {
-    @StateObject private var model = TranscriptionViewModel(settings: .defaults)
+    @StateObject private var library: LibraryStore
+    @StateObject private var model: TranscriptionViewModel
+
+    init() {
+        let library = LibraryStore.standard()
+        _library = StateObject(wrappedValue: library)
+        _model = StateObject(wrappedValue: TranscriptionViewModel(settings: .defaults, library: library))
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(model: model)
-                .frame(minWidth: 520, minHeight: 340)
+            TabView {
+                ContentView(model: model)
+                    .tabItem { Label("Transcribe", systemImage: "text.badge.plus") }
+                LibraryView(library: library)
+                    .tabItem { Label("Library", systemImage: "books.vertical") }
+            }
+            .frame(minWidth: 560, minHeight: 480)
         }
         Settings {
             AppSettingsView(model: model)
