@@ -6,10 +6,13 @@ need to download audio or run ffmpeg on the caption path.
 
 from __future__ import annotations
 
+import glob
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -18,6 +21,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from .cache import META_TTL, Cache
+from .captions import parse_any
+from .segments import Segment
 from .tls import ssl_context
 from .util import Log
 
@@ -117,6 +122,29 @@ def _lang_score(track: Track, langs: List[str]) -> int:
     return 0
 
 
+# The only metadata fields ytt reads. Caching just these keeps each entry a
+# few KB instead of yt-dlp's full -J dump (hundreds of KB, every format and
+# signed URL, and per-format cookie fields when --cookies-from-browser is on).
+META_FIELDS = ("id", "title", "duration", "uploader", "webpage_url", "language")
+TRACK_FIELDS = ("ext", "url", "name")
+
+
+def trim_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """The cacheable subset of yt-dlp metadata."""
+    out: Dict[str, Any] = {k: meta[k] for k in META_FIELDS if k in meta}
+    for key in ("subtitles", "automatic_captions"):
+        tracks = meta.get(key) or {}
+        out[key] = {
+            lang: [{f: e[f] for f in TRACK_FIELDS if f in e} for e in entries or []]
+            for lang, entries in tracks.items()
+        }
+    return out
+
+
+def _is_rate_limited(stderr: str) -> bool:
+    return "HTTP Error 429" in (stderr or "") or "Too Many Requests" in (stderr or "")
+
+
 class YouTube:
     def __init__(
         self,
@@ -134,6 +162,9 @@ class YouTube:
                 "(or `pipx install yt-dlp`)."
             )
         self.ytdlp = ytdlp
+        # Network round trips made so far (yt-dlp runs and HTTP fetches), so
+        # batch runs only pause between videos that actually hit YouTube.
+        self.requests = 0
 
     # ---------------------------------------------------------------- metadata
     def ytdlp_command(self, options: List[str], urls: List[str]) -> List[str]:
@@ -152,6 +183,7 @@ class YouTube:
     ) -> subprocess.CompletedProcess:
         cmd = self.ytdlp_command(options, urls)
         self.log.debug("$ " + " ".join(cmd))
+        self.requests += 1
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
     def metadata(self, url: str) -> Dict[str, Any]:
@@ -161,12 +193,15 @@ class YouTube:
             return cached
         proc = self._run(["-J", "--skip-download", "--no-warnings"], [url])
         if proc.returncode != 0:
-            raise VideoError(_clean_error(proc.stderr) or "yt-dlp failed to read %s" % url)
+            message = _clean_error(proc.stderr) or "yt-dlp failed to read %s" % url
+            if _is_rate_limited(proc.stderr):
+                raise RateLimited(message)
+            raise VideoError(message)
         try:
             meta = json.loads(proc.stdout)
         except ValueError as exc:
             raise VideoError("could not parse yt-dlp metadata for %s" % url) from exc
-        self.cache.set_json(meta, "meta", url)
+        self.cache.set_json(trim_metadata(meta), "meta", url)
         return meta
 
     def playlist_ids(self, url: str) -> List[str]:
@@ -231,6 +266,7 @@ class YouTube:
                 req = urllib.request.Request(
                     url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
                 )
+                self.requests += 1
                 with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as resp:
                     return resp.read().decode("utf-8", "replace")
             except urllib.error.HTTPError as exc:
@@ -261,12 +297,21 @@ class YouTube:
         (cache hits and the yt-dlp fallback), so callers should let
         :func:`parse_any` detect it from the payload.
         """
-        from .captions import parse_any
+        payload, fmt, _ = self._fetch(track, video_url)
+        return payload, fmt
 
+    def fetch_segments(self, track: Track, video_url: str) -> List[Segment]:
+        """Fetch and parse a caption track, parsing the payload only once."""
+        payload, fmt, segments = self._fetch(track, video_url)
+        return segments if segments is not None else parse_any(payload, fmt)
+
+    def _fetch(
+        self, track: Track, video_url: str
+    ) -> Tuple[str, Optional[str], Optional[List[Segment]]]:
         cached = self.cache.get_text("cap", video_url, track.lang, track.kind)
         if cached is not None:
             self.log.debug("caption cache hit (%s)" % track.lang)
-            return cached, None
+            return cached, None, None
 
         order = [f for f in PREFERRED_FORMATS if f in track.urls]
         order += [f for f in track.urls if f not in order]
@@ -275,15 +320,15 @@ class YouTube:
         for fmt in order:
             try:
                 payload = self.fetch_text(track.urls[fmt])
-                parse_any(payload, fmt)  # validate before committing
+                segments = parse_any(payload, fmt)  # validate before committing
                 self.cache.set_text(payload, "cap", video_url, track.lang, track.kind)
-                return payload, fmt
+                return payload, fmt, segments
             except RateLimited:
                 # Throttled at the IP level — other formats will fail the same
                 # way, so go straight to the yt-dlp fallback.
                 self.log.debug("rate limited; trying yt-dlp fallback")
                 try:
-                    return self._fetch_via_ytdlp(track, video_url), None
+                    return self._fetch_via_ytdlp(track, video_url), None, None
                 except VideoError as exc:
                     raise RateLimited(str(exc)) from exc
             except Exception as exc:
@@ -291,15 +336,10 @@ class YouTube:
                 self.log.debug("format %s unusable for %s: %s" % (fmt, track.lang, exc))
 
         self.log.debug("all direct formats failed (%s); falling back to yt-dlp" % last_exc)
-        return self._fetch_via_ytdlp(track, video_url), None
+        return self._fetch_via_ytdlp(track, video_url), None, None
 
     def _fetch_via_ytdlp(self, track: Track, video_url: str) -> str:
         """Last-resort path: let yt-dlp write one subtitle file, then read it."""
-        import glob
-        import os
-        import shutil as _shutil
-        import tempfile
-
         tmpdir = tempfile.mkdtemp(prefix="ytt-sub-")
         try:
             auto = track.kind != "manual"
@@ -318,7 +358,7 @@ class YouTube:
             files = sorted(glob.glob(os.path.join(tmpdir, "sub*")))
             if not files:
                 err = _clean_error(proc.stderr) or "unknown reason"
-                if "429" in (proc.stderr or "") or "Too Many Requests" in (proc.stderr or ""):
+                if _is_rate_limited(proc.stderr):
                     raise RateLimited(
                         "YouTube rate-limited this request (HTTP 429). Wait a minute "
                         "and retry, or pass --cookies-from-browser to use a session."
@@ -327,7 +367,7 @@ class YouTube:
             with open(files[0], encoding="utf-8", errors="replace") as fh:
                 return fh.read()
         finally:
-            _shutil.rmtree(tmpdir, ignore_errors=True)
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _clean_error(stderr: str) -> str:

@@ -263,7 +263,14 @@ def render_report(review: Dict[str, Any], reviewed_name: str = "transcript.revie
         "\n".join(_segment_html(s, url) for s in shown)
         or '<p class="note">The rewrite changed nothing.</p>'
     )
-    data = json.dumps(review, ensure_ascii=False).replace("</", "<\\/")
+    # Escape <, > and & as JSON \u escapes: no "</script>" or "<!--" can
+    # appear in the script element, and JSON.parse reads them back unchanged.
+    data = (
+        json.dumps(review, ensure_ascii=False)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
     return """<!doctype html>
 <html lang="en">
 <head>

@@ -115,7 +115,7 @@ class TestWriteOutputs(unittest.TestCase):
 
 class TestMainReportsRewriteFailure(unittest.TestCase):
     def test_rewrite_failure_is_recorded_and_original_paths_printed(self):
-        def fake_process_one(url, args, log, multi, cache):
+        def fake_process_one(url, args, log, multi, cache, yt=None):
             if url.endswith("bad"):
                 raise cli.RewriteFailed("boom", ["/tmp/bad.txt"])
             return make_transcript(), ["/tmp/good.txt"]
