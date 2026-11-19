@@ -141,6 +141,15 @@ def trim_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+_ID_IN_URL_RE = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})")
+
+
+def video_id(url: str) -> Optional[str]:
+    """The 11-character video ID in a YouTube URL, if there is one."""
+    m = _ID_IN_URL_RE.search(url or "")
+    return m.group(1) if m else None
+
+
 def _is_rate_limited(stderr: str) -> bool:
     return "HTTP Error 429" in (stderr or "") or "Too Many Requests" in (stderr or "")
 
@@ -165,6 +174,8 @@ class YouTube:
         # Network round trips made so far (yt-dlp runs and HTTP fetches), so
         # batch runs only pause between videos that actually hit YouTube.
         self.requests = 0
+        # Full metadata from prefetch_metadata(), keyed by input URL.
+        self._prefetched: Dict[str, Dict[str, Any]] = {}
 
     # ---------------------------------------------------------------- metadata
     def ytdlp_command(self, options: List[str], urls: List[str]) -> List[str]:
@@ -186,7 +197,48 @@ class YouTube:
         self.requests += 1
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
+    def prefetch_metadata(self, urls: List[str], chunk: int = 20) -> int:
+        """Read metadata for many videos with one yt-dlp process per chunk.
+
+        Each yt-dlp start costs about a second before it does any work, so a
+        playlist of 50 videos saves most of a minute. Only URLs with a
+        recognisable video ID that are not cached already are fetched;
+        anything that fails here is simply fetched again, one by one, by
+        :meth:`metadata`, which reports its error properly. Returns how many
+        videos were prefetched.
+        """
+        todo: Dict[str, str] = {}
+        for url in urls:
+            vid = video_id(url)
+            if vid and self.cache.get_json("meta", url, ttl=META_TTL) is None:
+                todo.setdefault(vid, url)
+        found = 0
+        ids = list(todo)
+        for i in range(0, len(ids), chunk):
+            batch = [todo[v] for v in ids[i : i + chunk]]
+            try:
+                proc = self._run(
+                    ["-j", "--skip-download", "--no-warnings", "--ignore-errors"],
+                    batch,
+                    timeout=120 + 30 * len(batch),
+                )
+            except subprocess.TimeoutExpired:
+                continue
+            for line in proc.stdout.splitlines():
+                try:
+                    meta = json.loads(line)
+                except ValueError:
+                    continue
+                url = todo.get(str(meta.get("id") or ""))
+                if url and isinstance(meta, dict):
+                    self._prefetched[url] = meta
+                    self.cache.set_json(trim_metadata(meta), "meta", url)
+                    found += 1
+        return found
+
     def metadata(self, url: str) -> Dict[str, Any]:
+        if url in self._prefetched:
+            return self._prefetched.pop(url)
         cached = self.cache.get_json("meta", url, ttl=META_TTL)
         if cached is not None:
             self.log.debug("metadata cache hit")

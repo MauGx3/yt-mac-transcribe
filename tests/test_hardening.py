@@ -187,6 +187,7 @@ class ReportEscapingTests(unittest.TestCase):
 class BatchDelayTests(unittest.TestCase):
     def test_no_pause_after_a_video_served_from_cache(self):
         yt = mock.Mock(requests=0)
+        yt.prefetch_metadata.return_value = 0
         sleeps = []
         with mock.patch.object(cli, "YouTube", return_value=yt), mock.patch.object(
             cli, "process_one", return_value=(object(), [])
