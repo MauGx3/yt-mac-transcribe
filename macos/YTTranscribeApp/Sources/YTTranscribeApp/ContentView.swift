@@ -208,9 +208,12 @@ struct ContentView: View {
                 Button("Keep Original Only") { model.declineReview() }
                     .appSecondaryButtonStyle()
                 if !model.canReview {
-                    SettingsLink { Text("Set up a rewrite command…") }
+                    SettingsLink { Text("Use another command…") }
                         .buttonStyle(.link)
                 }
+            }
+            if !model.canReview {
+                BuiltInModelStatus(model: model)
             }
         }
     }

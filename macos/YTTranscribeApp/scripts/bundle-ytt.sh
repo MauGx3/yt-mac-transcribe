@@ -2,6 +2,8 @@
 # [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
 # Packages the ytt CLI (src/ytt) as a single zipapp (ytt.pyz) and copies it
 # into the app bundle's Resources so the app works without a separate install.
+# Also copies the MLX-LM rewrite helper, which the built-in AI enhancement
+# setup installs next to its private Python.
 # Requires python3 on the build machine; yt-dlp is still resolved at runtime.
 set -eu
 
@@ -16,3 +18,4 @@ DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
 mkdir -p "$DEST"
 python3 -m zipapp "$STAGE" -o "$DEST/ytt.pyz" -p "/usr/bin/env python3" -m "ytt.cli:main"
 chmod +x "$DEST/ytt.pyz"
+cp "$REPO_ROOT/tools/rewrite_with_local_model.py" "$DEST/rewrite_with_local_model.py"

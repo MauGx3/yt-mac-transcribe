@@ -284,7 +284,9 @@ browser. You accept or reject each change, then save your final
 `My Video.reviewed.txt`. Changes the AI wasn't sure about, and words the speech
 recognition may have misheard, are labelled so you can check those first.
 
-Setup takes two commands, on an Apple silicon Mac:
+**In the Mac app, setup is one click:** **Set Up AI Enhancement** installs
+everything it needs into the app's own folder, then you click **Enhance**. In
+Terminal, setup takes two commands, on an Apple silicon Mac:
 
 ```bash
 python3 -m venv ~/.venvs/ytt-ai

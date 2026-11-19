@@ -227,7 +227,7 @@ struct TranscriptionRunner: TranscriptionRunning {
         for pipe in pipes { try? pipe.fileHandleForWriting.close() }
     }
 
-    static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
+    static func execute(executable: URL, arguments: [String], environment: [String: String]? = nil) async throws -> ProcessResult {
         let cancellationState = ProcessCancellationState()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -240,7 +240,7 @@ struct TranscriptionRunner: TranscriptionRunning {
                 let errDrain = PipeDrain(errPipe)
                 process.executableURL = executable
                 process.arguments = arguments
-                process.environment = Self.processEnvironment()
+                process.environment = environment ?? Self.processEnvironment()
                 process.standardOutput = outPipe
                 process.standardError = errPipe
                 process.terminationHandler = { terminated in

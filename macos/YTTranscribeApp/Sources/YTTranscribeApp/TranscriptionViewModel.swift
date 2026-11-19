@@ -30,13 +30,44 @@ final class TranscriptionViewModel {
     private var activeURL: String?
     private var activeRecordID: UUID?
     private let library: LibraryStore?
+    /// One-click install of the built-in AI enhancement.
+    let enhancement: EnhancementInstaller
 
     /// `library == nil` disables history (used by tests and previews).
-    init(settings: AppSettings, runner: any TranscriptionRunning = TranscriptionRunner(), library: LibraryStore? = nil) {
+    init(settings: AppSettings, runner: any TranscriptionRunning = TranscriptionRunner(), library: LibraryStore? = nil,
+         enhancement: EnhancementInstaller? = nil) {
         self.settings = settings
         self.formats = settings.effectiveFormats
         self.runner = runner
         self.library = library
+        self.enhancement = enhancement ?? EnhancementInstaller()
+    }
+
+    /// Installs the built-in AI enhancement and, unless another rewrite
+    /// command is already set, starts using it.
+    func setUpEnhancement() {
+        let model = enhancement.setup.model(for: settings.rewriteCommand, environment: ProcessInfo.processInfo.environment)
+        enhancement.install(model: model) { [weak self] in
+            guard let self, self.settings.rewriteCommand.isEmpty else { return }
+            self.useBuiltInEnhancement()
+        }
+    }
+
+    /// Points the rewrite command at the built-in AI enhancement.
+    func useBuiltInEnhancement(defaults: UserDefaults = .standard) {
+        guard enhancement.setup.isInstalled else { return }
+        settings.rewriteCommand = enhancement.setup.command
+        settings.persist(to: defaults)
+    }
+
+    /// Removes the built-in AI enhancement, and turns enhancement off if it was in use.
+    func removeEnhancement(defaults: UserDefaults = .standard) throws {
+        let wasInUse = enhancement.setup.isBuiltIn(settings.rewriteCommand)
+        try enhancement.remove()
+        if wasInUse {
+            settings.rewriteCommand = []
+            settings.persist(to: defaults)
+        }
     }
 
     func updateSettings(_ settings: AppSettings) {

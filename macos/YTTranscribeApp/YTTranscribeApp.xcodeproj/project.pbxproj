@@ -27,6 +27,8 @@
 		A10000000000000000000071 /* GlassCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000070 /* GlassCompat.swift */; };
 		A10000000000000000000073 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000072 /* AppShell.swift */; };
 		A10000000000000000000075 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000074 /* SettingsView.swift */; };
+		A10000000000000000000079 /* EnhancementSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000078 /* EnhancementSetup.swift */; };
+		A1000000000000000000007B /* EnhancementSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000007A /* EnhancementSetupTests.swift */; };
 		A10000000000000000000077 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000076 /* AppIcon.icon */; };
 /* End PBXBuildFile section */
 
@@ -63,6 +65,8 @@
 		A10000000000000000000070 /* GlassCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCompat.swift; sourceTree = "<group>"; };
 		A10000000000000000000072 /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
 		A10000000000000000000074 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A10000000000000000000078 /* EnhancementSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancementSetup.swift; sourceTree = "<group>"; };
+		A1000000000000000000007A /* EnhancementSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancementSetupTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000076 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -113,6 +117,7 @@
 				A10000000000000000000070 /* GlassCompat.swift */,
 				A10000000000000000000072 /* AppShell.swift */,
 				A10000000000000000000074 /* SettingsView.swift */,
+				A10000000000000000000078 /* EnhancementSetup.swift */,
 				A10000000000000000000029 /* Library.swift */,
 				A1000000000000000000002A /* LibraryView.swift */,
 				A1000000000000000000005C /* ReviewDocument.swift */,
@@ -128,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000026 /* AppSettingsTests.swift */,
+				A1000000000000000000007A /* EnhancementSetupTests.swift */,
 				A1000000000000000000002E /* BenchmarkTests.swift */,
 				A1000000000000000000002B /* LibraryTests.swift */,
 				A1000000000000000000005E /* ReviewDocumentTests.swift */,
@@ -239,6 +245,7 @@
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ytt.pyz",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/rewrite_with_local_model.py",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -259,6 +266,7 @@
 				A10000000000000000000071 /* GlassCompat.swift in Sources */,
 				A10000000000000000000073 /* AppShell.swift in Sources */,
 				A10000000000000000000075 /* SettingsView.swift in Sources */,
+				A10000000000000000000079 /* EnhancementSetup.swift in Sources */,
 				A10000000000000000000039 /* Library.swift in Sources */,
 				A1000000000000000000003A /* LibraryView.swift in Sources */,
 				A1000000000000000000004C /* ReviewDocument.swift in Sources */,
@@ -274,6 +282,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000036 /* AppSettingsTests.swift in Sources */,
+				A1000000000000000000007B /* EnhancementSetupTests.swift in Sources */,
 				A1000000000000000000003E /* BenchmarkTests.swift in Sources */,
 				A1000000000000000000003B /* LibraryTests.swift in Sources */,
 				A1000000000000000000004E /* ReviewDocumentTests.swift in Sources */,

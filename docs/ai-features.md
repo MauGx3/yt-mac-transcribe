@@ -109,19 +109,27 @@ memory or more. Not sure which one to use?
 
 ### In the Mac app
 
-1. Open **Settings** and fill in **Local rewrite command** with the full paths, for
-   example:
+The app sets everything up for you. You don't need Terminal or the steps
+above.
 
-   ```text
-   /Users/you/.venvs/ytt-ai/bin/python /Users/you/yt-transcribe/tools/rewrite_with_local_model.py
-   ```
+1. Transcribe a single video. When the original is saved, click
+   **Set Up AI Enhancement**. You can also click it in **Settings →
+   Enhancement**.
+2. Wait for the setup to finish. It downloads about 2.5 GB once: a private copy
+   of Python, MLX-LM, and the Qwen2.5 3B model. The app shows each step and how
+   much of the model has arrived.
+3. Click **Enhance**. The review screen opens when the AI is done. Playlists
+   and batches skip this step.
 
-   Replace `/Users/you` with your home folder. Run `echo $HOME` in Terminal to
-   see it. The app can't expand `~`, so use full paths.
-2. Transcribe a single video as usual.
-3. When the original is saved, the app asks whether to create an enhanced copy.
-   Click yes. Playlists and batches skip this step.
-4. The review screen opens when the AI is done.
+The setup keeps everything in
+`~/Library/Application Support/YTTranscribe/AI`. It installs nothing
+system-wide, and the installer it downloads (`uv`) is checked against a fixed
+checksum before it runs. The model goes to the shared Hugging Face cache
+(`~/.cache/huggingface`), where `ytt` and the Benchmark also find it.
+**Settings → Enhancement → Remove…** deletes the private Python and MLX-LM.
+
+To use another tool instead, type its command in **Rewrite command**. Use full
+paths, because the app can't expand `~`.
 
 ## Review the AI's changes
 

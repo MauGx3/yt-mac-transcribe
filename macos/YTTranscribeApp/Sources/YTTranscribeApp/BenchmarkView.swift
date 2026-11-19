@@ -33,7 +33,7 @@ struct BenchmarkView: View {
                     .help("Downloads MLX models that are not on this Mac yet. Some are several GB.")
             }
             if model.settings.rewriteCommand.isEmpty {
-                Text("To compare LLMs, set the local rewrite command in Settings, for example: python3 /path/to/tools/rewrite_with_local_model.py")
+                Text("To compare LLMs, set up the built-in AI model in Settings → Enhancement.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

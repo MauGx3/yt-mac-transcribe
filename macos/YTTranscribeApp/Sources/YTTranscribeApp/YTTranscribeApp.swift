@@ -7,6 +7,8 @@ struct YTTranscribeApp: App {
 
     init() {
         let library = LibraryStore.standard()
+        // Ship helper updates with app updates.
+        EnhancementSetup.standard.refreshRunner()
         _library = State(initialValue: library)
         _model = State(initialValue: TranscriptionViewModel(settings: .defaults, library: library))
     }
