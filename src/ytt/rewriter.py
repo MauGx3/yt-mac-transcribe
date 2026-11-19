@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 from .model import Transcript
 from .review import clean_uncertain
@@ -43,7 +43,7 @@ def _request_payload(transcript: Transcript) -> dict:
 def rewrite_transcript(
     transcript: Transcript,
     command: Sequence[str],
-    timeout: int = 300,
+    timeout: Optional[int] = 300,
 ) -> Transcript:
     """Rewrite transcript text with a local model command.
 

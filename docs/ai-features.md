@@ -93,7 +93,8 @@ Two rules:
   helper, not to `ytt`. Put `-f`, `-o` and other `ytt` options before it.
 - **Long videos get more time automatically.** The limit is 2 minutes plus
   2 seconds per caption line. To set your own, add `--rewrite-timeout 1800`
-  (30 minutes) *before* `--rewrite-command`.
+  (30 minutes) *before* `--rewrite-command`, or `--rewrite-timeout 0` for no
+  limit, for example on a first run that still has to download the model.
 
 To clean up a transcript you already have, save it with `-f json` and pass it
 with `--rewrite-from`. Nothing is downloaded or transcribed again:

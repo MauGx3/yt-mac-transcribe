@@ -154,7 +154,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="SECS",
-        help="local rewrite command timeout (default: 2 minutes plus 2 s per segment)",
+        help="local rewrite command timeout; 0 = no limit "
+        "(default: 2 minutes plus 2 s per segment)",
     )
     p.add_argument(
         "--rewrite-from",
@@ -302,14 +303,16 @@ def _write_formats(
     return written
 
 
-def rewrite_timeout(args, transcript: Transcript) -> int:
+def rewrite_timeout(args, transcript: Transcript) -> Optional[int]:
     """``--rewrite-timeout``, or a limit that grows with the transcript.
 
     A fixed 5 minutes cut off local models on hour-long videos after most of
     the work was done; 2 s per segment covers a 7B model on Apple silicon.
+    ``--rewrite-timeout 0`` means no limit, for a first run that may still
+    download the model (well over a gigabyte).
     """
-    if args.rewrite_timeout:
-        return args.rewrite_timeout
+    if args.rewrite_timeout is not None:
+        return args.rewrite_timeout if args.rewrite_timeout > 0 else None
     return 120 + 2 * len(transcript.segments)
 
 
