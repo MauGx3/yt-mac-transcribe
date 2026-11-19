@@ -54,9 +54,7 @@ def wanted(filename, patterns=ALLOW_PATTERNS):
 
 def total_size(siblings, patterns=ALLOW_PATTERNS):
     """Bytes to download: the sizes of the matching repo files."""
-    return sum(
-        (getattr(s, "size", None) or 0) for s in siblings if wanted(s.rfilename, patterns)
-    )
+    return sum((getattr(s, "size", None) or 0) for s in siblings if wanted(s.rfilename, patterns))
 
 
 def directory_size(path):
@@ -88,7 +86,9 @@ def report_progress(path, total, stop, interval=0.5):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("repo", help="Hugging Face repo id, for example mlx-community/Qwen2.5-3B-Instruct-4bit")
+    parser.add_argument(
+        "repo", help="Hugging Face repo id, for example mlx-community/Qwen2.5-3B-Instruct-4bit"
+    )
     args = parser.parse_args(argv)
 
     try:
