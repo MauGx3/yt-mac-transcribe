@@ -147,9 +147,9 @@ struct ContentView: View {
                     .textSelection(.enabled)
             }
         case .transcribing:
-            progressRow("Transcribing…", detail: "Fetching captions, or transcribing the audio when there are none.")
+            progressRow("Transcribing…", detail: model.progress ?? "Fetching captions, or transcribing the audio when there are none.")
         case .rewriting:
-            progressRow("Enhancing transcript…", detail: "Your local model is rewriting the transcript. The original is already saved.")
+            progressRow("Enhancing transcript…", detail: model.progress ?? "Your local model is rewriting the transcript. The original is already saved.")
         case let .awaitingReviewChoice(files):
             enhanceChoice(files)
         case let .completed(files):
@@ -185,6 +185,8 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.headline)
                 Text(detail).font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
             }
             Spacer()
             Button("Cancel") { model.cancel() }

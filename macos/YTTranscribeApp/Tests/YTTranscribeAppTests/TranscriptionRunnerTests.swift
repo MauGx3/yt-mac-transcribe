@@ -125,4 +125,67 @@ final class TranscriptionRunnerTests: XCTestCase {
         XCTAssertEqual(result.stdout.count, 262_144)
         XCTAssertEqual(result.stderr.count, 262_144)
     }
+
+    func testReviewRewritesTheSavedJSONWhenThereIsOne() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let txt = dir.appendingPathComponent("Talk.txt")
+        let json = dir.appendingPathComponent("Talk.json")
+        for url in [txt, json] { try Data().write(to: url) }
+        let files = TranscriptFiles(original: txt, extras: [json])
+        XCTAssertEqual(TranscriptionRunner.savedTranscriptJSON(files), json)
+        XCTAssertNil(TranscriptionRunner.savedTranscriptJSON(TranscriptFiles(original: txt)))
+
+        var settings = AppSettings(yttExecutable: URL(fileURLWithPath: "/tmp/ytt"), rewriteCommand: ["run", "--x"], outputDirectory: URL(fileURLWithPath: "/elsewhere"))
+        settings.formats = [.txt, .json]
+        XCTAssertEqual(
+            TranscriptionRunner.rewriteFromArguments(json: json, settings: settings),
+            ["--rewrite-from", json.path, "-f", "txt", "json", "-o", dir.path, "--rewrite-command", "run", "--x"]
+        )
+    }
+
+    func testExecuteReportsStderrLinesAsTheyArrive() async throws {
+        final class Lines: @unchecked Sendable {
+            let lock = NSLock()
+            var items: [String] = []
+            func add(_ line: String) { lock.lock(); items.append(line); lock.unlock() }
+        }
+        let lines = Lines()
+        let result = try await TranscriptionRunner.execute(
+            executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", "printf 'one\\n  two  \\r\\n\\nthree' >&2; echo out"]
+        ) { lines.add($0) }
+        XCTAssertEqual(result.stdout, "out\n")
+        XCTAssertEqual(lines.items, ["one", "two", "three"])
+    }
+
+    func testCancelStopsChildProcessesToo() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let pidFile = dir.appendingPathComponent("child.pid")
+        let perl = URL(fileURLWithPath: "/usr/bin/perl")
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: perl.path), "needs /usr/bin/perl")
+        // Like ytt: lead a process group, then wait on a long-running child.
+        let script = """
+        setpgrp(0, 0); my $pid = fork(); if ($pid == 0) { exec "sleep", "60"; }
+        open(my $f, ">", $ARGV[0]); print $f $pid; close($f); waitpid($pid, 0);
+        """
+        let task = Task {
+            try await TranscriptionRunner.execute(executable: perl, arguments: ["-e", script, pidFile.path])
+        }
+        for _ in 0..<50 where ((try? String(contentsOf: pidFile, encoding: .utf8)) ?? "").isEmpty {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        let childPID = try XCTUnwrap(Int32(String(decoding: Data(contentsOf: pidFile), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
+        task.cancel()
+        _ = try? await task.value
+        var alive = true
+        for _ in 0..<70 {
+            if kill(childPID, 0) != 0 { alive = false; break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertFalse(alive, "the child of the cancelled process kept running")
+    }
 }

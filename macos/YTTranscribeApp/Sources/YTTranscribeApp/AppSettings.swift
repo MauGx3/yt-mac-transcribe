@@ -47,11 +47,11 @@ struct AppSettings: Equatable {
     }
 
     static func load(from values: UserDefaults, environment env: [String: String]) -> AppSettings {
-        let rewrite = values.string(forKey: "rewriteCommand") ?? env["YTT_REWRITE_COMMAND"] ?? ""
+        let rewriteTokens = Self.parseCommand(values.string(forKey: "rewriteCommand") ?? env["YTT_REWRITE_COMMAND"] ?? "") ?? []
         let defaultExecutable = bundledExecutable?.path ?? "/opt/homebrew/bin/ytt"
         return AppSettings(
             yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
-            rewriteCommand: Self.parseCommand(rewrite) ?? [],
+            rewriteCommand: rewriteTokens,
             outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true),
             formats: OutputFormat.parse(values.string(forKey: "formats") ?? "txt"),
             engine: values.string(forKey: "asrEngine").flatMap(ASREngine.init(rawValue:)) ?? .auto,
@@ -102,6 +102,16 @@ struct AppSettings: Equatable {
         return tokens
     }
 
+    /// Joins tokens so that `parseCommand` reads back exactly the same list.
+    static func quoteCommand(_ tokens: [String]) -> String {
+        tokens.map { token in
+            let plain = !token.isEmpty && token.allSatisfy { !$0.isWhitespace && !"\"'\\".contains($0) }
+            if plain { return token }
+            return "'" + token.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
+        .joined(separator: " ")
+    }
+
     func persist(to defaults: UserDefaults = .standard) {
         // The bundled copy moves with the app, so its path is never saved.
         if yttExecutable.path == Self.bundledExecutable?.path {
@@ -109,7 +119,13 @@ struct AppSettings: Equatable {
         } else {
             defaults.set(yttExecutable.path, forKey: "yttExecutable")
         }
-        defaults.set(rewriteCommand.joined(separator: " "), forKey: "rewriteCommand")
+        // Keep the text the user typed in Settings when it still means the
+        // same command; otherwise save a quoted form. A plain space join
+        // split paths with spaces into several arguments on the next launch.
+        let saved = defaults.string(forKey: "rewriteCommand")
+        if saved.flatMap(Self.parseCommand) != rewriteCommand {
+            defaults.set(Self.quoteCommand(rewriteCommand), forKey: "rewriteCommand")
+        }
         defaults.set(outputDirectory.path, forKey: "outputDirectory")
         defaults.set(effectiveFormats.map(\.rawValue).joined(separator: ","), forKey: "formats")
         defaults.set(engine.rawValue, forKey: "asrEngine")

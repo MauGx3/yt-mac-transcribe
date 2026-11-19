@@ -39,9 +39,47 @@ protocol TranscriptionRunning {
     func review(url: String, settings: AppSettings) async throws -> TranscriptFiles
     /// Batch or playlist run. Returns one entry per video that produced output.
     func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles]
+    /// Review of a transcript already on disk. Rewrites its saved `.json`
+    /// copy when there is one instead of fetching the video again.
+    func review(files: TranscriptFiles, url: String, settings: AppSettings) async throws -> TranscriptFiles
+    /// Receives each progress line `ytt` prints while it runs.
+    func setProgressHandler(_ handler: (@Sendable (String) -> Void)?)
+}
+
+extension TranscriptionRunning {
+    func review(files: TranscriptFiles, url: String, settings: AppSettings) async throws -> TranscriptFiles {
+        try await review(url: url, settings: settings)
+    }
+
+    func setProgressHandler(_ handler: (@Sendable (String) -> Void)?) {}
+}
+
+/// Holds the progress callback for a value-type runner.
+final class ProgressRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (@Sendable (String) -> Void)?
+
+    func set(_ handler: (@Sendable (String) -> Void)?) {
+        lock.lock()
+        self.handler = handler
+        lock.unlock()
+    }
+
+    func send(_ line: String) {
+        lock.lock()
+        let handler = self.handler
+        lock.unlock()
+        handler?(line)
+    }
 }
 
 struct TranscriptionRunner: TranscriptionRunning {
+    private let progress = ProgressRelay()
+
+    func setProgressHandler(_ handler: (@Sendable (String) -> Void)?) {
+        progress.set(handler)
+    }
+
     private final class ProcessCancellationState: @unchecked Sendable {
         private let lock = NSLock()
         private var process: Process?
@@ -115,6 +153,21 @@ struct TranscriptionRunner: TranscriptionRunning {
             + asrArguments(settings)
     }
 
+    /// The saved `ytt -f json` copy of a transcript, if the user asked for one.
+    static func savedTranscriptJSON(_ files: TranscriptFiles) -> URL? {
+        ([files.original] + files.extras).first {
+            $0.pathExtension.lowercased() == "json" && !$0.lastPathComponent.hasSuffix(".review.json")
+                && FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
+
+    /// Rewrites a saved transcript with no network or speech recognition.
+    /// `ytt` prints the same paths, in the same order, as a full review run.
+    static func rewriteFromArguments(json: URL, settings: AppSettings) -> [String] {
+        ["--rewrite-from", json.path, "-f"] + settings.effectiveFormats.map(\.rawValue)
+            + ["-o", json.deletingLastPathComponent().path, "--rewrite-command"] + settings.rewriteCommand
+    }
+
     /// Speech engine and model, used when a video has no usable captions.
     static func asrArguments(_ settings: AppSettings) -> [String] {
         ["--engine", settings.engine.rawValue, "--model", settings.model]
@@ -133,6 +186,19 @@ struct TranscriptionRunner: TranscriptionRunning {
             throw TranscriptionRunnerError.missingOutput
         }
         return TranscriptFiles(original: output.original, reviewed: reviewed, extras: output.extras, review: output.review)
+    }
+
+    func review(files: TranscriptFiles, url: String, settings: AppSettings) async throws -> TranscriptFiles {
+        guard let json = Self.savedTranscriptJSON(files) else {
+            return try await review(url: url, settings: settings)
+        }
+        guard !settings.rewriteCommand.isEmpty else {
+            throw TranscriptionRunnerError.rewriteCommandMissing
+        }
+        let paths = try await outputPaths(arguments: Self.rewriteFromArguments(json: json, settings: settings), settings: settings)
+        let output = try Self.files(from: paths, mode: .review, formatCount: settings.effectiveFormats.count)
+        guard output.reviewed != nil else { throw TranscriptionRunnerError.missingOutput }
+        return output
     }
 
     func transcribeMany(urls: [String], playlist: Bool, settings: AppSettings) async throws -> [TranscriptFiles] {
@@ -159,7 +225,10 @@ struct TranscriptionRunner: TranscriptionRunning {
         try FileManager.default.createDirectory(at: settings.outputDirectory, withIntermediateDirectories: true)
         let result: ProcessResult
         do {
-            result = try await Self.execute(executable: settings.yttExecutable, arguments: arguments)
+            let progress = self.progress
+            result = try await Self.execute(executable: settings.yttExecutable, arguments: arguments) { line in
+                progress.send(line)
+            }
             try Task.checkCancellation()
         } catch is CancellationError {
             throw TranscriptionRunnerError.cancelled
@@ -173,23 +242,45 @@ struct TranscriptionRunner: TranscriptionRunning {
             .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
 
-    /// Drains a pipe on a background queue while the child runs.
+    /// Drains a pipe while the child runs, optionally reporting each line.
     ///
     /// Reading only after exit deadlocks once the child fills the pipe
     /// buffer (~64 KB): it blocks on write and never terminates.
     private final class PipeDrain: @unchecked Sendable {
         private let lock = NSLock()
         private var data = Data()
+        private var pending = Data()
         private let finished = DispatchSemaphore(value: 0)
 
-        init(_ pipe: Pipe) {
-            let handle = pipe.fileHandleForReading
-            DispatchQueue.global(qos: .utility).async { [self] in
-                let chunk = handle.readDataToEndOfFile()
+        init(_ pipe: Pipe, onLine: (@Sendable (String) -> Void)? = nil) {
+            pipe.fileHandleForReading.readabilityHandler = { [self] handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else {
+                    handle.readabilityHandler = nil
+                    lock.lock()
+                    let rest = String(decoding: pending, as: UTF8.self).trimmingCharacters(in: .whitespaces)
+                    pending = Data()
+                    lock.unlock()
+                    if !rest.isEmpty { onLine?(rest) }
+                    finished.signal()
+                    return
+                }
                 lock.lock()
-                data = chunk
+                data.append(chunk)
+                var lines: [String] = []
+                if onLine != nil {
+                    pending.append(chunk)
+                    // \r too: progress bars redraw one line with carriage returns.
+                    while let end = pending.firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) {
+                        lines.append(String(decoding: pending[pending.startIndex..<end], as: UTF8.self))
+                        pending.removeSubrange(pending.startIndex...end)
+                    }
+                }
                 lock.unlock()
-                finished.signal()
+                for line in lines {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty { onLine?(trimmed) }
+                }
             }
         }
 
@@ -227,7 +318,29 @@ struct TranscriptionRunner: TranscriptionRunning {
         for pipe in pipes { try? pipe.fileHandleForWriting.close() }
     }
 
-    static func execute(executable: URL, arguments: [String]) async throws -> ProcessResult {
+    /// Stops `ytt` and everything it started.
+    ///
+    /// `ytt` leads its own process group (`YTT_PROCESS_GROUP=1`), so one
+    /// signal to the group also stops yt-dlp, ffmpeg and Whisper, which
+    /// would otherwise keep running after a cancel. SIGTERM lets ytt delete
+    /// its temp audio; anything still alive after 5 seconds is killed.
+    static func stop(_ process: Process) {
+        guard process.isRunning else { return }
+        let pid = process.processIdentifier
+        if kill(-pid, SIGTERM) != 0 {
+            process.terminate()  // not a group leader yet: signal ytt alone
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 5) {
+            _ = kill(-pid, SIGKILL)
+            if process.isRunning { _ = kill(pid, SIGKILL) }
+        }
+    }
+
+    static func execute(
+        executable: URL,
+        arguments: [String],
+        onStderrLine: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ProcessResult {
         let cancellationState = ProcessCancellationState()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -237,10 +350,12 @@ struct TranscriptionRunner: TranscriptionRunning {
                 // Drain from before launch so the termination handler can
                 // never run ahead of the readers.
                 let outDrain = PipeDrain(outPipe)
-                let errDrain = PipeDrain(errPipe)
+                let errDrain = PipeDrain(errPipe, onLine: onStderrLine)
                 process.executableURL = executable
                 process.arguments = arguments
-                process.environment = Self.processEnvironment()
+                var environment = Self.processEnvironment()
+                environment["YTT_PROCESS_GROUP"] = "1"
+                process.environment = environment
                 process.standardOutput = outPipe
                 process.standardError = errPipe
                 process.terminationHandler = { terminated in
@@ -263,8 +378,8 @@ struct TranscriptionRunner: TranscriptionRunning {
                 }
                 do {
                     try process.run()
-                    if cancellationState.isCancelled, process.isRunning {
-                        process.terminate()
+                    if cancellationState.isCancelled {
+                        Self.stop(process)
                     }
                 } catch {
                     Self.closeWriters(outPipe, errPipe)
@@ -273,7 +388,7 @@ struct TranscriptionRunner: TranscriptionRunning {
             }
         }, onCancel: {
             guard let process = cancellationState.cancel() else { return }
-            if process.isRunning { process.terminate() }
+            Self.stop(process)
         })
     }
 }

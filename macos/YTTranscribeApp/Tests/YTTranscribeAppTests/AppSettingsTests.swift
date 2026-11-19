@@ -44,4 +44,30 @@ final class AppSettingsTests: XCTestCase {
         defaults.set("bogus", forKey: "asrEngine")
         XCTAssertEqual(AppSettings.load(from: defaults, environment: [:]).engine, .auto)
     }
+
+    func testQuoteCommandRoundTripsThroughParser() {
+        let tokens = ["/Users/me/My Tools/run.py", "--model", "it's \"big\"", "back\\slash", ""]
+        XCTAssertEqual(AppSettings.parseCommand(AppSettings.quoteCommand(tokens)), tokens)
+        XCTAssertEqual(AppSettings.quoteCommand(["plain", "--flag"]), "plain --flag")
+    }
+
+    func testPersistKeepsPathsWithSpaces() {
+        let suite = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var settings = AppSettings.load(from: defaults, environment: [:])
+        settings.rewriteCommand = ["/Users/me/My Tools/run.py", "--model", "x"]
+        settings.persist(to: defaults)
+        XCTAssertEqual(AppSettings.load(from: defaults, environment: [:]).rewriteCommand, settings.rewriteCommand)
+    }
+
+    func testPersistKeepsTheTextTypedInSettings() {
+        let suite = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let typed = "\"/Applications/Local Model/bin/rewrite\" --model x"
+        defaults.set(typed, forKey: "rewriteCommand")
+        AppSettings.load(from: defaults, environment: [:]).persist(to: defaults)
+        XCTAssertEqual(defaults.string(forKey: "rewriteCommand"), typed)
+    }
 }

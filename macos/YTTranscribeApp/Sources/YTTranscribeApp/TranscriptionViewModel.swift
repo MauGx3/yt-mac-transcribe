@@ -21,6 +21,8 @@ final class TranscriptionViewModel {
     }
 
     private(set) var state: State = .idle
+    /// The latest line `ytt` printed while working, e.g. "[asr] downloading audio…".
+    private(set) var progress: String?
     private(set) var formats: [OutputFormat]
     private(set) var settings: AppSettings
     var canReview: Bool { !settings.rewriteCommand.isEmpty }
@@ -37,6 +39,16 @@ final class TranscriptionViewModel {
         self.formats = settings.effectiveFormats
         self.runner = runner
         self.library = library
+        runner.setProgressHandler { [weak self] line in
+            Task { @MainActor [weak self] in self?.receiveProgress(line) }
+        }
+    }
+
+    private func receiveProgress(_ line: String) {
+        switch state {
+        case .transcribing, .rewriting: progress = line
+        default: break
+        }
     }
 
     func updateSettings(_ settings: AppSettings) {
@@ -100,6 +112,7 @@ final class TranscriptionViewModel {
     private func replaceActiveOperation() -> UUID {
         activeTask?.cancel()
         activeTask = nil
+        progress = nil
         let operationID = UUID()
         activeOperationID = operationID
         return operationID
@@ -112,6 +125,7 @@ final class TranscriptionViewModel {
     private func finish(_ operationID: UUID, with newState: State) {
         guard isCurrent(operationID) else { return }
         activeTask = nil
+        progress = nil
         state = newState
     }
 
@@ -159,7 +173,7 @@ final class TranscriptionViewModel {
         }
         state = .rewriting
         do {
-            let files = try await runner.review(url: url, settings: settings)
+            let files = try await runner.review(files: originals, url: url, settings: settings)
             if let id = activeRecordID, var record = library?.record(id: id) {
                 record.reviewed = files.reviewed
                 record.reviewFile = files.review
@@ -180,6 +194,7 @@ final class TranscriptionViewModel {
         activeOperationID = nil
         activeTask?.cancel()
         activeTask = nil
+        progress = nil
         state = .failed("Transcription was cancelled.")
     }
 }

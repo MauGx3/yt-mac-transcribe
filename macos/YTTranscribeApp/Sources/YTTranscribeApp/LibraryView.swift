@@ -13,6 +13,13 @@ private enum SearchScope: Hashable {
     case transcripts
 }
 
+/// Restarts the background transcript search when any of these change.
+private struct ContentSearchKey: Hashable {
+    let query: String
+    let scope: SearchScope
+    let records: Int
+}
+
 extension TranscriptRecord {
     /// Sorts Needs review first, then Reviewed, then not enhanced.
     var reviewSortKey: Int {
@@ -40,12 +47,36 @@ struct LibraryView: View {
     @State private var selection: Set<TranscriptRecord.ID> = []
     @State private var sortOrder = [KeyPathComparator(\TranscriptRecord.createdAt, order: .reverse)]
     @State private var showInspector = true
+    /// Records whose transcript files contain the query, found off the main thread.
+    @State private var contentMatches: Set<TranscriptRecord.ID> = []
     @Environment(\.openWindow) private var openWindow
 
+    private var needle: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Title and URL matches are instant; transcript contents come from
+    /// `searchContents()`, so typing never reads files on the main thread.
     private var results: [TranscriptRecord] {
-        library.search(query, includeContents: scope == .transcripts)
+        let needle = needle
+        return library.records
+            .filter {
+                needle.isEmpty || contentMatches.contains($0.id)
+                    || LibraryStore.matches($0, query: needle, includeContents: false)
+            }
             .filter { filter == .all || $0.reviewStatus == .needsReview }
             .sorted(using: sortOrder)
+    }
+
+    private func searchContents() async {
+        contentMatches = []
+        let needle = needle
+        guard scope == .transcripts, !needle.isEmpty else { return }
+        try? await Task.sleep(nanoseconds: 250_000_000)  // wait for typing to pause
+        guard !Task.isCancelled else { return }
+        let records = library.records
+        let found = await Task.detached(priority: .userInitiated) {
+            Set(records.filter { LibraryStore.matches($0, query: needle, includeContents: true) }.map(\.id))
+        }.value
+        if !Task.isCancelled { contentMatches = found }
     }
 
     private var selectedRecords: [TranscriptRecord] {
@@ -102,6 +133,9 @@ struct LibraryView: View {
         .searchScopes($scope) {
             Text("Transcript Text").tag(SearchScope.transcripts)
             Text("Titles and Links").tag(SearchScope.titles)
+        }
+        .task(id: ContentSearchKey(query: query, scope: scope, records: library.records.count)) {
+            await searchContents()
         }
         .inspector(isPresented: $showInspector) {
             inspector
