@@ -205,6 +205,22 @@ def asr_ready(engine: str = "auto") -> bool:
     return chosen == "whisper-cpp" and bool(b["whisper.cpp"])
 
 
+def performance_cores() -> int:
+    """Performance-core count on Apple silicon, else the CPU count.
+
+    whisper.cpp defaults to 4 threads; on an M-series Mac its CPU stages run
+    faster on every performance core, and efficiency cores only slow it down.
+    """
+    try:
+        out = subprocess.run(
+            ["sysctl", "-n", "hw.perflevel0.physicalcpu"], capture_output=True, text=True, timeout=5
+        )
+        n = int(out.stdout.strip()) if out.returncode == 0 else 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        n = 0
+    return n if n > 0 else max(1, min(8, os.cpu_count() or 4))
+
+
 def mlx_command(binary: str, repo: str, wav: str, outdir: str, lang: str) -> List[str]:
     cmd = [
         binary,
@@ -275,6 +291,7 @@ def transcribe_wav(
             out_prefix = os.path.join(tmpdir, "out")
             log.info("  [asr] transcribing with whisper.cpp (%s)…" % os.path.basename(model_ref))
             cmd = [binary, "-m", model_ref, "-f", wav, "-ojf", "-of", out_prefix, "-pp"]
+            cmd += ["-t", str(performance_cores())]
             if lang and lang != "auto":
                 cmd += ["-l", lang]
             label, json_path = "whisper.cpp", out_prefix + ".json"
@@ -297,11 +314,14 @@ def transcribe_audio(
     lang: str = "auto",
     engine: str = "auto",
     cookies: Optional[str] = None,
+    info: Optional[dict] = None,
 ) -> List[Segment]:
     """Download audio, normalise it, and run a local Whisper engine.
 
     ``cookies`` is the ``--cookies-from-browser`` value, so age-restricted
     and members-only videos download the same way their metadata did.
+    ``info`` is yt-dlp's full metadata for the video, when the caller has it:
+    yt-dlp then downloads from it instead of extracting the page again.
     """
     backends = detect_backends()
     missing = [k for k in ("yt-dlp", "ffmpeg") if not backends[k]]
@@ -317,9 +337,14 @@ def transcribe_audio(
     tmpdir = tempfile.mkdtemp(prefix="ytt-asr-")
     wav = os.path.join(tmpdir, "audio.wav")
     try:
+        info_path = None
+        if info and info.get("formats"):
+            info_path = os.path.join(tmpdir, "info.json")
+            with open(info_path, "w", encoding="utf-8") as fh:
+                json.dump(info, fh)
         log.info("  [asr] downloading audio…")
         dl = subprocess.run(
-            audio_download_command(backends["yt-dlp"], url, tmpdir, cookies),
+            audio_download_command(backends["yt-dlp"], url, tmpdir, cookies, info_path),
             capture_output=True,
             text=True,
         )
@@ -333,9 +358,17 @@ def transcribe_audio(
 
 
 def audio_download_command(
-    ytdlp: str, url: str, tmpdir: str, cookies: Optional[str] = None
+    ytdlp: str,
+    url: str,
+    tmpdir: str,
+    cookies: Optional[str] = None,
+    info_path: Optional[str] = None,
 ) -> List[str]:
-    """yt-dlp argv that writes ``<tmpdir>/audio.wav`` as 16 kHz mono."""
+    """yt-dlp argv that writes ``<tmpdir>/audio.wav`` as 16 kHz mono.
+
+    With ``info_path`` (a saved ``yt-dlp -J`` dump) yt-dlp skips the second
+    page extraction, which costs a few seconds per video.
+    """
     cmd = [
         ytdlp,
         "-f",
@@ -351,6 +384,8 @@ def audio_download_command(
     ]
     if cookies:
         cmd += ["--cookies-from-browser", cookies]
+    if info_path:
+        return [*cmd, "--load-info-json", info_path]
     return [*cmd, "--", url]  # a URL must never be parsed as a yt-dlp option
 
 

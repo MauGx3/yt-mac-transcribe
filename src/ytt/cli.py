@@ -14,7 +14,7 @@ from . import asr as asr_mod
 from . import config as config_mod
 from .cache import DEFAULT_TTL, Cache
 from .formatter import FORMATS, render
-from .model import Transcript
+from .model import Transcript, segments_from_data, segments_to_data, transcript_from_json
 from .report import render_report
 from .review import build_review, render_review
 from .rewriter import rewrite_transcript
@@ -152,9 +152,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--rewrite-timeout",
         type=int,
-        default=300,
+        default=None,
         metavar="SECS",
-        help="local rewrite command timeout (default: %(default)s)",
+        help="local rewrite command timeout (default: 2 minutes plus 2 s per segment)",
+    )
+    p.add_argument(
+        "--rewrite-from",
+        metavar="TRANSCRIPT_JSON",
+        help="rewrite an existing `ytt -f json` transcript instead of fetching the video "
+        "again; needs --rewrite-command",
     )
     # [AI-GENERATED] REMAINDER keeps runner flags such as `--model` out of
     # ytt's own parser, so this option must be the last one on the line.
@@ -266,13 +272,23 @@ def write_report(review: dict, review_path: str) -> str:
 
 
 def _write_formats(
-    t: Transcript, args, title: str, vid: str, multi: bool, log: Log, companion: bool
+    t: Transcript,
+    args,
+    title: str,
+    vid: str,
+    multi: bool,
+    log: Log,
+    companion: bool,
+    keep_existing: bool = False,
 ) -> List[str]:
     written: List[str] = []
     for fmt in args.format:
         path = output_path(args.out, title, vid, fmt, multi)
         if companion:
             path = rewritten_output_path(path)
+        if keep_existing and os.path.exists(path):
+            written.append(path)
+            continue
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -286,22 +302,43 @@ def _write_formats(
     return written
 
 
+def rewrite_timeout(args, transcript: Transcript) -> int:
+    """``--rewrite-timeout``, or a limit that grows with the transcript.
+
+    A fixed 5 minutes cut off local models on hour-long videos after most of
+    the work was done; 2 s per segment covers a 7B model on Apple silicon.
+    """
+    if args.rewrite_timeout:
+        return args.rewrite_timeout
+    return 120 + 2 * len(transcript.segments)
+
+
 def write_outputs(
-    transcript: Transcript, args, title: str, vid: str, multi: bool, log: Log
+    transcript: Transcript,
+    args,
+    title: str,
+    vid: str,
+    multi: bool,
+    log: Log,
+    keep_originals: bool = False,
 ) -> List[str]:
     """[AI-GENERATED] Write originals first, then optional rewrite companions.
 
     Originals are always persisted before the rewriter runs, so a failing or
     slow model never loses the transcript. Rewrite errors raise
-    :class:`RewriteFailed` carrying the original paths.
+    :class:`RewriteFailed` carrying the original paths. With
+    ``keep_originals`` (``--rewrite-from``) originals that already exist are
+    left untouched, but their paths are still reported first.
     """
-    written = _write_formats(transcript, args, title, vid, multi, log, False)
+    written = _write_formats(
+        transcript, args, title, vid, multi, log, False, keep_existing=keep_originals
+    )
     if not args.rewrite_command:
         return written
     t0 = Timer()
     try:
         rewritten = rewrite_transcript(
-            transcript, args.rewrite_command, timeout=args.rewrite_timeout
+            transcript, args.rewrite_command, timeout=rewrite_timeout(args, transcript)
         )
     except Exception as exc:
         raise RewriteFailed("local rewrite failed: %s" % exc, written) from exc
@@ -423,18 +460,27 @@ def process_one(
             )
             return None, []
         t0 = Timer()
+        lang = langs[0] if langs else "auto"
+        asr_key = ("asr", vid, args.engine, args.model, lang)
         try:
-            segments = asr_mod.transcribe_audio(
-                url,
-                args.model,
-                log,
-                lang=langs[0] if langs else "auto",
-                engine=args.engine,
-                cookies=args.cookies_from_browser,
-            )
-            transcript = asr_mod.transcript_from_asr(
-                meta, segments, args.model, lang=langs[0] if langs else "auto"
-            )
+            cached = cache.get_json(*asr_key) if cache is not None else None
+            if cached is not None:
+                segments = segments_from_data(cached)
+                log.debug("ASR cache hit")
+            else:
+                segments = asr_mod.transcribe_audio(
+                    url,
+                    args.model,
+                    log,
+                    lang=lang,
+                    engine=args.engine,
+                    cookies=args.cookies_from_browser,
+                    info=meta,
+                )
+                if cache is not None:
+                    # Local ASR takes minutes; never redo it for the same video.
+                    cache.set_json(segments_to_data(segments), *asr_key)
+            transcript = asr_mod.transcript_from_asr(meta, segments, args.model, lang=lang)
             log.info(
                 "  ✓ local ASR · %s words · %s" % (fmt_int(transcript.words), fmt_elapsed(t0.ms))
             )
@@ -482,6 +528,39 @@ def _render_raw(t: Transcript, fmt: str, timestamps: bool) -> str:
     return t.plain_text() + "\n"
 
 
+def rewrite_from_file(args, log: Log) -> int:
+    """``--rewrite-from``: rewrite a saved JSON transcript, no network at all.
+
+    Prints the same paths, in the same order, as a full run with
+    ``--rewrite-command`` would, so the macOS app parses both the same way.
+    """
+    if not args.rewrite_command:
+        log.error("--rewrite-from needs --rewrite-command")
+        return 2
+    try:
+        with open(args.rewrite_from, encoding="utf-8") as fh:
+            transcript = transcript_from_json(json.load(fh))
+    except (OSError, ValueError, TypeError) as exc:
+        log.error("could not read transcript %s: %s" % (args.rewrite_from, exc))
+        return 1
+    if not transcript.segments:
+        log.error("transcript %s has no segments" % args.rewrite_from)
+        return 1
+    title = transcript.title or transcript.video_id
+    try:
+        paths = write_outputs(
+            transcript, args, title, transcript.video_id, False, log, keep_originals=True
+        )
+    except RewriteFailed as exc:
+        log.error(str(exc))
+        for p in exc.written:
+            print(p)
+        return 1
+    for p in paths:
+        print(p)
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     raw = sys.argv[1:] if argv is None else list(argv)
     if raw and raw[0] == "demo":
@@ -526,6 +605,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(repo)
         return 0
 
+    if args.rewrite_from:
+        return rewrite_from_file(args, log)
+
     cache = Cache(enabled=not args.no_cache, ttl=args.cache_ttl)
     if args.clear_cache:
         n = cache.clear()
@@ -565,6 +647,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         expanded.append(url)
 
     multi = len(expanded) > 1
+    if multi:
+        n = yt_probe.prefetch_metadata(expanded)
+        if n:
+            log.debug("prefetched metadata for %d video(s)" % n)
     ok = 0
     requests_before = yt_probe.requests
     for i, url in enumerate(expanded, 1):

@@ -380,7 +380,10 @@ Cache
 
 Cleanup with a local model (see docs/ai-features.md)
       --rewrite-timeout SECS
-                           how long the model may take (default: 300)
+                           how long the model may take
+                           (default: 2 minutes plus 2 seconds per caption line)
+      --rewrite-from FILE  clean up a transcript saved with -f json, without
+                           fetching or transcribing the video again
       --rewrite-command CMD ...
                            run a local model after transcription (must be last)
       --review-report FILE rebuild the browser review page from a .review.json file
