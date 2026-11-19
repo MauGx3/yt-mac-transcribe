@@ -193,10 +193,10 @@ ytt https://youtu.be/aircAruvnKk --asr always
 folders, in order:
 
 1. `$YTT_MODEL_DIR`, if set
-2. the current folder, then `./models`
-3. `~/.cache/whisper`, then `~/.cache/whisper.cpp`
-4. `/opt/homebrew/share/whisper-cpp` and its `models` subfolder
-5. `/usr/local/share/whisper-cpp` and its `models` subfolder
+2. `~/.cache/whisper`, then `~/.cache/whisper.cpp`
+3. `/opt/homebrew/share/whisper-cpp` and its `models` subfolder
+4. `/usr/local/share/whisper-cpp` and its `models` subfolder
+5. the current folder, then `./models`
 
 You can also pass the full path to the file: `--model ~/models/ggml-small.en.bin`.
 </details>
@@ -433,7 +433,8 @@ step-by-step fixes.
 
 Captions are cached in `~/.cache/yt-transcribe` for a week, and video details
 for an hour, so running the same video again is quick and puts less load on
-YouTube.
+YouTube. The cache folder is private to your user account, keeps only the few
+video details `ytt` needs, and deletes expired entries about once a day.
 
 **How fast is it?** With captions, a transcript usually takes a few seconds, and
 most of that is `yt-dlp` reading the video page. Local transcription takes

@@ -59,6 +59,12 @@ A pull request should include:
 
 Keep the pull request small enough to review. Add a regression test when fixing a parser, track-selection, timing, cache, or formatter bug.
 
+## AI-generated code markers
+
+Some files carry a `[AI-GENERATED]` comment. It marks code an AI assistant
+wrote that has not yet had a line-by-line human review. When you review such a
+block, remove its marker in the same pull request.
+
 ## Commit messages
 
 Use a short imperative subject, for example:

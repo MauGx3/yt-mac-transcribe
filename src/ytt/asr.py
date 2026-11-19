@@ -60,14 +60,16 @@ def model_search_dirs() -> List[str]:
         dirs.append(env)
     home = os.path.expanduser("~")
     dirs += [
-        os.getcwd(),
-        os.path.join(os.getcwd(), "models"),
         os.path.join(home, ".cache", "whisper"),
         os.path.join(home, ".cache", "whisper.cpp"),
         "/opt/homebrew/share/whisper-cpp",
         "/opt/homebrew/share/whisper-cpp/models",
         "/usr/local/share/whisper-cpp",
         "/usr/local/share/whisper-cpp/models",
+        # Last, so a model file left in whatever folder ytt runs from (say,
+        # a freshly cloned repo) never shadows the user's own models.
+        os.getcwd(),
+        os.path.join(os.getcwd(), "models"),
     ]
     return dirs
 
@@ -293,61 +295,63 @@ def transcribe_audio(
     model: str,
     log: Log,
     lang: str = "auto",
-    keep_audio: Optional[str] = None,
     engine: str = "auto",
+    cookies: Optional[str] = None,
 ) -> List[Segment]:
-    """Download audio, normalise it, and run a local Whisper engine."""
+    """Download audio, normalise it, and run a local Whisper engine.
+
+    ``cookies`` is the ``--cookies-from-browser`` value, so age-restricted
+    and members-only videos download the same way their metadata did.
+    """
     backends = detect_backends()
-    chosen = pick_engine(engine, backends) or "whisper-cpp"
-    binary_key = "mlx_whisper" if chosen == "mlx" else "whisper.cpp"
-    missing = [k for k in ("yt-dlp", "ffmpeg", binary_key) if not backends[k]]
+    missing = [k for k in ("yt-dlp", "ffmpeg") if not backends[k]]
     if missing:
+        chosen = pick_engine(engine, backends) or "whisper-cpp"
         raise ASRUnavailable(
             "ASR fallback needs %s. Install with:\n%s"
             % (", ".join(missing), _missing_hint(chosen, model))
         )
 
     # Resolve before downloading audio so a bad model fails fast.
-    chosen, binary, model_ref = prepare_engine(model, chosen, backends)
+    chosen, binary, model_ref = prepare_engine(model, engine, backends)
     tmpdir = tempfile.mkdtemp(prefix="ytt-asr-")
     wav = os.path.join(tmpdir, "audio.wav")
     try:
         log.info("  [asr] downloading audio…")
         dl = subprocess.run(
-            [
-                backends["yt-dlp"],
-                "-x",
-                "--audio-format",
-                "wav",
-                "--postprocessor-args",
-                "-ar 16000 -ac 1",
-                "-o",
-                os.path.join(tmpdir, "audio.%(ext)s"),
-                "--no-warnings",
-                "--",  # a URL must never be parsed as a yt-dlp option
-                url,
-            ],
+            audio_download_command(backends["yt-dlp"], url, tmpdir, cookies),
             capture_output=True,
             text=True,
         )
         if dl.returncode != 0:
             raise ASRUnavailable("audio download failed: %s" % dl.stderr.strip()[-300:])
-
-        candidates = [
-            os.path.join(tmpdir, f)
-            for f in os.listdir(tmpdir)
-            if f.startswith("audio.") and f.endswith(".wav")
-        ]
-        if not candidates:
+        if not os.path.exists(wav):
             raise ASRUnavailable("yt-dlp produced no wav file")
-        if candidates[0] != wav:
-            os.rename(candidates[0], wav)
-
         return transcribe_wav(wav, chosen, binary, model_ref, log, lang)
     finally:
-        if keep_audio and os.path.exists(wav):
-            shutil.copy(wav, keep_audio)
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def audio_download_command(
+    ytdlp: str, url: str, tmpdir: str, cookies: Optional[str] = None
+) -> List[str]:
+    """yt-dlp argv that writes ``<tmpdir>/audio.wav`` as 16 kHz mono."""
+    cmd = [
+        ytdlp,
+        "-f",
+        "bestaudio/best",
+        "-x",
+        "--audio-format",
+        "wav",
+        "--postprocessor-args",
+        "-ar 16000 -ac 1",
+        "-o",
+        os.path.join(tmpdir, "audio.%(ext)s"),
+        "--no-warnings",
+    ]
+    if cookies:
+        cmd += ["--cookies-from-browser", cookies]
+    return [*cmd, "--", url]  # a URL must never be parsed as a yt-dlp option
 
 
 def transcript_from_asr(

@@ -13,7 +13,6 @@ from . import __version__
 from . import asr as asr_mod
 from . import config as config_mod
 from .cache import DEFAULT_TTL, Cache
-from .captions import parse_any
 from .formatter import FORMATS, render
 from .model import Transcript
 from .report import render_report
@@ -212,6 +211,8 @@ def output_path(out: str, title: str, video_id: str, fmt: str, multi: bool) -> s
 
     `--out` is treated as a directory unless it ends in a known output
     extension, so `-o transcripts` works even before the directory exists.
+    With several videos, an explicit file name gets the video ID inserted
+    (``notes [id].txt``) so each video keeps its own file.
     """
     ext = "." + fmt
     out = out or "."
@@ -222,10 +223,12 @@ def output_path(out: str, title: str, video_id: str, fmt: str, multi: bool) -> s
             base = sanitize_filename(title or video_id, max_len=80 - len(suffix))
             return os.path.join(out, base + suffix + ext)
         return os.path.join(out, sanitize_filename(title or video_id) + ext)
+    root, given = os.path.splitext(out)
+    if multi:
+        return "%s [%s]%s" % (root, video_id, ext)
     # Explicit file path: honour it verbatim when it matches the format.
-    if out.lower().endswith(ext):
+    if given.lower() == ext:
         return out
-    root, _ = os.path.splitext(out)
     return root + ext
 
 
@@ -329,9 +332,11 @@ def process_one(
     log: Log,
     multi: bool,
     cache: Optional[Cache] = None,
+    yt: Optional[YouTube] = None,
 ) -> Tuple[Optional[Transcript], List[str]]:
     """Transcribe a single video. Returns (transcript, written_paths)."""
-    yt = YouTube(log, cookies=args.cookies_from_browser, cache=cache)
+    if yt is None:
+        yt = YouTube(log, cookies=args.cookies_from_browser, cache=cache)
     timer = Timer()
 
     meta = yt.metadata(url)
@@ -366,9 +371,7 @@ def process_one(
         else:
             t0 = Timer()
             try:
-                payload, fmt = yt.fetch_track(track, url)
-                # fmt is None when unknown; parse_any then sniffs the payload.
-                segments = parse_any(payload, fmt)
+                segments = yt.fetch_segments(track, url)
                 problems = quality_report(segments, int((meta.get("duration") or 0) * 1000))
                 log.debug(
                     "captions fetched in %s · %d segments · track %s (%s)"
@@ -422,7 +425,12 @@ def process_one(
         t0 = Timer()
         try:
             segments = asr_mod.transcribe_audio(
-                url, args.model, log, lang=langs[0] if langs else "auto", engine=args.engine
+                url,
+                args.model,
+                log,
+                lang=langs[0] if langs else "auto",
+                engine=args.engine,
+                cookies=args.cookies_from_browser,
             )
             transcript = asr_mod.transcript_from_asr(
                 meta, segments, args.model, lang=langs[0] if langs else "auto"
@@ -558,11 +566,15 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     multi = len(expanded) > 1
     ok = 0
+    requests_before = yt_probe.requests
     for i, url in enumerate(expanded, 1):
         if multi:
             log.info("\n[%d/%d] %s" % (i, len(expanded), url))
-        if multi and i > 1 and args.delay > 0:
-            time.sleep(args.delay)  # be polite; YouTube 429s on bursts
+        if multi and i > 1 and args.delay > 0 and yt_probe.requests > requests_before:
+            # Be polite; YouTube 429s on bursts. Skipped when the previous
+            # video came entirely from the cache.
+            time.sleep(args.delay)
+        requests_before = yt_probe.requests
 
         attempts = max(1, args.retries + 1)
         transcript = None
@@ -570,13 +582,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         succeeded = False
         for attempt in range(attempts):
             try:
-                transcript, paths = process_one(url, args, log, multi, cache)
+                transcript, paths = process_one(url, args, log, multi, cache, yt_probe)
                 # --list-tracks returns no transcript but is still a success.
                 succeeded = transcript is not None or args.list_tracks
                 break
             except (VideoError, YtDlpMissing) as exc:
                 log.error(str(exc))
-                if attempt + 1 < attempts and "429" in str(exc):
+                limited = isinstance(exc, RateLimited)
+                if attempt + 1 < attempts and limited:
                     # Throttles usually clear within a minute or two.
                     wait = min(120, 15 * (3**attempt))
                     log.info(
@@ -585,7 +598,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     )
                     time.sleep(wait)
                     continue
-                if "429" in str(exc):
+                if limited:
                     log.info(
                         "  YouTube is throttling this IP. Wait a few minutes, "
                         "or retry with --cookies-from-browser chrome"
