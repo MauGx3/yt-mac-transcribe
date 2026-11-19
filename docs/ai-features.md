@@ -51,7 +51,42 @@ the changes most worth checking.
 The included helper uses **MLX-LM**, Apple's framework for running language
 models on Apple silicon. It needs an M1 or later Mac.
 
-Install MLX-LM in its own small Python environment, so it doesn't clash with
+### In the Mac app
+
+There's nothing to install by hand. The first time you press **Enhance**, the
+app offers to set up on-device AI. You can also do it in
+**Settings → Enhancement → On-device AI**. The setup screen says what it will
+download and where, and nothing happens until you click **Install**.
+
+It installs, into `~/Library/Application Support/YTTranscribe/AIRuntime`:
+
+- a private copy of Python 3.12, which doesn't touch any Python you already have
+- MLX and MLX-LM from PyPI, at exact versions, each file checked against a
+  fingerprint (SHA-256 hash) that ships inside the app
+- optionally, MLX Whisper for speech recognition (adds about 220 MB, including
+  PyTorch)
+
+The download is about 100 MB and usually takes a minute or two. You can also
+download the language model (about 1.7 GB) straight away, or let it download the
+first time you enhance a transcript. When setup finishes, Enhance starts on its
+own.
+
+Settings also has **Update** (after an app update ships newer versions),
+**Repair** and **Remove**. Models stay in `~/.cache/huggingface`, shared with
+other MLX tools. See the [app's README](../macos/YTTranscribeApp/README.md#on-device-ai-setup)
+for how the install is kept safe.
+
+### In Terminal
+
+If you work in a checkout of this repository with [uv](https://docs.astral.sh/uv/),
+`uv sync` already installs MLX-LM and MLX Whisper (the `ai` dependency group),
+and rebuilding the environment keeps them. Use `uv run python` as the Python
+in the commands below.
+
+If you set up the Mac app, you can reuse its Python:
+`"$HOME/Library/Application Support/YTTranscribe/AIRuntime/venv/bin/python"`.
+
+Otherwise, install MLX-LM in its own small Python environment, so it doesn't clash with
 anything else on your Mac:
 
 ```bash
@@ -109,19 +144,16 @@ memory or more. Not sure which one to use?
 
 ### In the Mac app
 
-1. Open **Settings** and fill in **Local rewrite command** with the full paths, for
-   example:
+1. Transcribe a single video as usual.
+2. When the original is saved, the app asks whether to create an enhanced copy.
+   Click **Enhance**. The first time, click **Set Up On-Device AI…** instead
+   and follow the [setup](#in-the-mac-app). Playlists and batches skip this
+   step.
+3. The review screen opens when the AI is done.
 
-   ```text
-   /Users/you/.venvs/ytt-ai/bin/python /Users/you/yt-transcribe/tools/rewrite_with_local_model.py
-   ```
-
-   Replace `/Users/you` with your home folder. Run `echo $HOME` in Terminal to
-   see it. The app can't expand `~`, so use full paths.
-2. Transcribe a single video as usual.
-3. When the original is saved, the app asks whether to create an enhanced copy.
-   Click yes. Playlists and batches skip this step.
-4. The review screen opens when the AI is done.
+To use another runner, such as Ollama, enter it under **Custom command** in
+**Settings → Enhancement**, with full paths (the app can't expand `~`). When
+it's set, Enhance runs it instead of the on-device AI.
 
 ## Review the AI's changes
 

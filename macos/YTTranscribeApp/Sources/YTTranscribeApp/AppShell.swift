@@ -90,4 +90,5 @@ struct RootView: View {
         model: TranscriptionViewModel(settings: .defaults),
         library: LibraryStore(fileURL: nil)
     )
+    .environment(AIRuntimeManager())
 }

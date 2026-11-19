@@ -99,20 +99,21 @@ enum BenchmarkRunner {
     static func arguments(settings: AppSettings, download: Bool) -> [String] {
         var args = ["demo", "--json", "--no-pick", "--quiet"]
         if download { args.append("--download") }
-        if settings.rewriteCommand.isEmpty {
+        if settings.effectiveRewriteCommand.isEmpty {
             args.append("--asr-only")
         } else {
             // `--runner` takes the rest of the line, so it goes last.
-            args += ["--runner"] + settings.rewriteCommand
+            args += ["--runner"] + settings.effectiveRewriteCommand
         }
         return args
     }
 
     static func run(settings: AppSettings, download: Bool) async throws -> BenchmarkReport {
-        let result = try await TranscriptionRunner.execute(
+        let launch = try TranscriptionRunner.launchCommand(
             executable: settings.yttExecutable,
             arguments: arguments(settings: settings, download: download)
         )
+        let result = try await TranscriptionRunner.execute(executable: launch.executable, arguments: launch.arguments)
         try Task.checkCancellation()
         guard result.status == 0 else {
             throw TranscriptionRunnerError.commandFailed(
@@ -149,8 +150,14 @@ extension TranscriptionViewModel {
         var updated = settings
         if let engine, let parsed = ASREngine(rawValue: engine) { updated.engine = parsed }
         if let model { updated.model = model }
-        if let llmModel, !updated.rewriteCommand.isEmpty {
-            updated.rewriteCommand = AppSettings.rewriteCommand(updated.rewriteCommand, settingModel: llmModel)
+        if let llmModel {
+            if !updated.rewriteCommand.isEmpty {
+                updated.rewriteCommand = AppSettings.rewriteCommand(updated.rewriteCommand, settingModel: llmModel)
+            } else if !updated.managedRewriteCommand.isEmpty {
+                // The built-in command is rebuilt from this on every launch.
+                updated.llmModel = llmModel
+                updated.managedRewriteCommand = AppSettings.rewriteCommand(updated.managedRewriteCommand, settingModel: llmModel)
+            }
         }
         updated.persist(to: defaults)
         updateSettings(updated)

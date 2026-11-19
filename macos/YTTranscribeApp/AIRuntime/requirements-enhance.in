@@ -1,0 +1,3 @@
+# Packages for AI enhancement (transcript clean-up with MLX-LM).
+# Regenerate the .txt lock with scripts/lock-ai-runtime.sh after editing.
+mlx-lm==0.32.2

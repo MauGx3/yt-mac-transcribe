@@ -9,6 +9,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- macOS app: on-device AI sets itself up. The first **Enhance** (or
+  **Settings → Enhancement**) offers to install a private Python 3.12 with MLX
+  and MLX-LM (and optionally MLX Whisper) into Application Support, with a
+  consent screen, progress, Update, Repair and Remove. The app bundles a pinned
+  `uv` and hash-pinned package locks; models download on first use or during
+  setup. Enhance uses it when no custom rewrite command is set.
+- `tools/fetch_mlx_model.py`: pre-downloads an MLX model with JSON progress.
+- `uv sync` installs MLX-LM and MLX Whisper (new `ai` dependency group, on by
+  default), so rebuilding the project environment keeps them.
+
 - `ytt demo`: benchmarks speech-to-text engines and models and MLX-LM cleanup
   models on a copyright-free sample voiced on the Mac, recommends a model for
   each, and saves the choice to `~/.config/ytt/config.json` as the new

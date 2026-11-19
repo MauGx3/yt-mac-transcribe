@@ -23,7 +23,7 @@ final class TranscriptionViewModel {
     private(set) var state: State = .idle
     private(set) var formats: [OutputFormat]
     private(set) var settings: AppSettings
-    var canReview: Bool { !settings.rewriteCommand.isEmpty }
+    var canReview: Bool { !settings.effectiveRewriteCommand.isEmpty }
     private let runner: any TranscriptionRunning
     private var activeTask: Task<Void, Never>?
     private var activeOperationID: UUID?
@@ -153,8 +153,8 @@ final class TranscriptionViewModel {
         guard isCurrent(operationID),
               case let .awaitingReviewChoice(originals) = state,
               let url = activeURL else { return }
-        guard !settings.rewriteCommand.isEmpty else {
-            finish(operationID, with: .failed("Set YTT_REWRITE_COMMAND or configure a local rewrite command in Settings first."))
+        guard !settings.effectiveRewriteCommand.isEmpty else {
+            finish(operationID, with: .failed("Set up on-device AI in Settings › Enhancement, or enter a custom rewrite command there, first."))
             return
         }
         state = .rewriting

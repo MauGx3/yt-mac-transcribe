@@ -32,8 +32,8 @@ struct BenchmarkView: View {
                     .disabled(running)
                     .help("Downloads MLX models that are not on this Mac yet. Some are several GB.")
             }
-            if model.settings.rewriteCommand.isEmpty {
-                Text("To compare LLMs, set the local rewrite command in Settings, for example: python3 /path/to/tools/rewrite_with_local_model.py")
+            if model.settings.effectiveRewriteCommand.isEmpty {
+                Text("To compare LLMs, set up on-device AI in Settings › Enhancement, or enter a custom rewrite command there.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -110,7 +110,7 @@ struct BenchmarkView: View {
                             Text(BenchmarkReport.percent(row.wer))
                             Text(BenchmarkReport.percent(row.strict))
                             Button("Use") { applyLLM(row.model) }
-                                .disabled(model.settings.rewriteCommand.isEmpty)
+                                .disabled(model.settings.effectiveRewriteCommand.isEmpty)
                         } else {
                             Text(row.reason ?? row.status)
                                 .foregroundStyle(.secondary)
@@ -133,8 +133,8 @@ struct BenchmarkView: View {
                 Text(rec.llm.reason).font(.caption).foregroundStyle(.secondary)
                 Button("Use Recommended") {
                     applyASR(engine: rec.asr.engine, model: rec.asr.model)
-                    if !model.settings.rewriteCommand.isEmpty { applyLLM(rec.llm.model) }
-                    appliedText = model.settings.rewriteCommand.isEmpty
+                    if !model.settings.effectiveRewriteCommand.isEmpty { applyLLM(rec.llm.model) }
+                    appliedText = model.settings.effectiveRewriteCommand.isEmpty
                         ? "Using \(rec.asr.engine) · \(rec.asr.model)"
                         : "Using \(rec.asr.model) and \(rec.llm.model)"
                 }

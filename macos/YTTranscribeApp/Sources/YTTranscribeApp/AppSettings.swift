@@ -30,6 +30,16 @@ struct AppSettings: Equatable {
     var formats: [OutputFormat] = [.txt]
     var engine: ASREngine = .auto
     var model: String = ASRModel.defaultName
+    /// Language model for the built-in Enhance command; nil uses the runner's default.
+    var llmModel: String? = nil
+    /// The built-in Enhance command (on-device AI runtime), when it is installed.
+    var managedRewriteCommand: [String] = []
+
+    /// The command Enhance runs: the custom one from Settings, otherwise the
+    /// built-in on-device AI. Empty when neither is available.
+    var effectiveRewriteCommand: [String] {
+        rewriteCommand.isEmpty ? managedRewriteCommand : rewriteCommand
+    }
 
     /// Selected formats, deduplicated; never empty.
     var effectiveFormats: [OutputFormat] { OutputFormat.normalized(formats) }
@@ -46,10 +56,12 @@ struct AppSettings: Equatable {
         Bundle.main.url(forResource: "ytt", withExtension: "pyz")
     }
 
-    static func load(from values: UserDefaults, environment env: [String: String]) -> AppSettings {
+    /// `runtime == nil` skips looking for the on-device AI runtime (tests).
+    static func load(from values: UserDefaults, environment env: [String: String], runtime: AIRuntimeLayout? = AIRuntimeLayout.standard) -> AppSettings {
         let rewrite = values.string(forKey: "rewriteCommand") ?? env["YTT_REWRITE_COMMAND"] ?? ""
         let defaultExecutable = bundledExecutable?.path ?? "/opt/homebrew/bin/ytt"
-        return AppSettings(
+        let llmModel = values.string(forKey: "llmModel").flatMap { $0.isEmpty ? nil : $0 }
+        var settings = AppSettings(
             yttExecutable: URL(fileURLWithPath: values.string(forKey: "yttExecutable") ?? env["YTT_EXECUTABLE"] ?? defaultExecutable),
             rewriteCommand: Self.parseCommand(rewrite) ?? [],
             outputDirectory: URL(fileURLWithPath: values.string(forKey: "outputDirectory") ?? defaultOutputDirectory.path, isDirectory: true),
@@ -57,6 +69,11 @@ struct AppSettings: Equatable {
             engine: values.string(forKey: "asrEngine").flatMap(ASREngine.init(rawValue:)) ?? .auto,
             model: values.string(forKey: "asrModel").flatMap { $0.isEmpty ? nil : $0 } ?? ASRModel.defaultName
         )
+        settings.llmModel = llmModel
+        if let runtime {
+            settings.managedRewriteCommand = AIRuntime.managedRewriteCommand(layout: runtime, model: llmModel) ?? []
+        }
+        return settings
     }
 
     static func parseCommand(_ command: String) -> [String]? {
@@ -114,5 +131,6 @@ struct AppSettings: Equatable {
         defaults.set(effectiveFormats.map(\.rawValue).joined(separator: ","), forKey: "formats")
         defaults.set(engine.rawValue, forKey: "asrEngine")
         defaults.set(model, forKey: "asrModel")
+        if let llmModel { defaults.set(llmModel, forKey: "llmModel") } else { defaults.removeObject(forKey: "llmModel") }
     }
 }
