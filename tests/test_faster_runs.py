@@ -154,6 +154,8 @@ class TimeoutTests(unittest.TestCase):
         self.assertEqual(cli.rewrite_timeout(args, t), 120 + 2 * 1000)
         args.rewrite_timeout = 30
         self.assertEqual(cli.rewrite_timeout(args, t), 30)
+        args.rewrite_timeout = 0
+        self.assertIsNone(cli.rewrite_timeout(args, t))
 
 
 if __name__ == "__main__":
