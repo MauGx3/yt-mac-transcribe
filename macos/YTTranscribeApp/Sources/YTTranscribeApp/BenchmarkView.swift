@@ -19,7 +19,6 @@ struct BenchmarkView: View {
                     + "The sample is a script written for this app and voiced on your Mac, so no video or copyrighted audio is used."
             )
             .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button(running ? "Running…" : "Run Benchmark") { start() }
                     .keyboardShortcut(.defaultAction)
