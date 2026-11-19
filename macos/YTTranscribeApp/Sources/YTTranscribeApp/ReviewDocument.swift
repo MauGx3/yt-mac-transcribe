@@ -9,10 +9,14 @@ struct ReviewDocument: Codable, Equatable {
         let changed: Int
         let flagged: Int
         let hasConfidence: Bool
+        /// Whether the rewrite model reported how sure it was. Older review
+        /// files lack the key; `has_confidence` is the best guess for them.
+        var hasAIConfidence: Bool? = nil
 
         enum CodingKeys: String, CodingKey {
             case segments, changed, flagged
             case hasConfidence = "has_confidence"
+            case hasAIConfidence = "has_ai_confidence"
         }
     }
 

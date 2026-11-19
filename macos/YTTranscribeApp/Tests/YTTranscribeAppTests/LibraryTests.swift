@@ -163,4 +163,19 @@ final class LibraryTests: XCTestCase {
         XCTAssertNil(records[0].reviewedCopy)
         XCTAssertEqual(records[0].reviewStatus, .notEnhanced)
     }
+
+    @MainActor
+    func testCorruptLibraryIsMovedAsideAndGoodRecordsKept() throws {
+        let dir = try temporaryDirectory()
+        let file = dir.appendingPathComponent("library.json")
+        let good = """
+        {"id":"\(UUID().uuidString)","title":"Good","sourceURL":"https://youtu.be/a","createdAt":"2026-11-19T00:00:00Z","kind":"single","files":["file:///tmp/a.txt"]}
+        """
+        try Data("[\(good), {\"broken\": true}]".utf8).write(to: file)
+        let store = LibraryStore(fileURL: file)
+        XCTAssertEqual(store.records.map(\.title), ["Good"])
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertTrue(names.contains { $0.hasPrefix("library.corrupt-") }, "\(names)")
+        XCTAssertFalse(names.contains("library.json"))
+    }
 }

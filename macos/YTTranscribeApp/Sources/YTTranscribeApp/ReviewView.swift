@@ -170,8 +170,8 @@ struct ReviewView: View {
                 FlagBadge(flag: .aiUnsure)
                 FlagBadge(flag: .unclearAudio)
             }
-            if !model.document.stats.hasConfidence {
-                Text("This rewrite gave no confidence information, so nothing is marked unsure.")
+            if !(model.document.stats.hasAIConfidence ?? model.document.stats.hasConfidence) {
+                Text("This rewrite gave no confidence information, so no change is marked AI unsure.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

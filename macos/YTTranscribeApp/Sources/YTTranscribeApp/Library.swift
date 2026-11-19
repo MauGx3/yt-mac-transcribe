@@ -168,7 +168,27 @@ final class LibraryStore {
         decoder.dateDecodingStrategy = .iso8601
         if let decoded = try? decoder.decode([TranscriptRecord].self, from: data) {
             records = decoded
+            return
         }
+        // Unreadable: keep whatever records still decode, and move the file
+        // aside so the next save cannot overwrite the user's history.
+        records = (try? decoder.decode([LossyRecord].self, from: data))?.compactMap(\.record) ?? []
+        Self.moveAside(fileURL)
+    }
+
+    /// Decodes one record, or nil when that entry is damaged.
+    private struct LossyRecord: Decodable {
+        let record: TranscriptRecord?
+        init(from decoder: Decoder) throws {
+            record = try? TranscriptRecord(from: decoder)
+        }
+    }
+
+    nonisolated static func moveAside(_ fileURL: URL, date: Date = Date()) {
+        let stamp = ISO8601DateFormatter().string(from: date).replacingOccurrences(of: ":", with: "-")
+        let backup = fileURL.deletingPathExtension()
+            .appendingPathExtension("corrupt-\(stamp).json")
+        try? FileManager.default.moveItem(at: fileURL, to: backup)
     }
 
     private func save() {

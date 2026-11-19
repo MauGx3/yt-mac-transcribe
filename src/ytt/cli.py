@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import signal
 import sys
 import time
 from typing import List, Optional, Tuple
@@ -564,7 +566,29 @@ def rewrite_from_file(args, log: Log) -> int:
     return 0
 
 
+def _on_sigterm(signum, frame):  # pragma: no cover - exercised by the app
+    # Unwind normally so `finally` blocks delete temp audio, and subprocess
+    # calls kill the child they are waiting on.
+    raise SystemExit(128 + signum)
+
+
+def install_signal_handling(environ=os.environ) -> None:
+    """Make ``ytt`` safe to cancel.
+
+    SIGTERM unwinds like Ctrl-C instead of exiting at once. When the macOS
+    app sets ``YTT_PROCESS_GROUP=1``, ytt also leads its own process group,
+    so cancelling signals yt-dlp, ffmpeg and Whisper along with it. (Only
+    then: in a terminal, a new group would stop Ctrl-C reaching ytt.)
+    """
+    signal.signal(signal.SIGTERM, _on_sigterm)
+    if environ.get("YTT_PROCESS_GROUP") == "1":
+        with contextlib.suppress(OSError):
+            os.setpgid(0, 0)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    if argv is None:
+        install_signal_handling()
     raw = sys.argv[1:] if argv is None else list(argv)
     if raw and raw[0] == "demo":
         from . import demo
