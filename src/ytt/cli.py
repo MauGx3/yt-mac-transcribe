@@ -21,7 +21,7 @@ from .review import build_review, render_review
 from .rewriter import rewrite_transcript
 from .segments import quality_report
 from .util import Log, Timer, fmt_duration, fmt_elapsed, fmt_int, sanitize_filename
-from .youtube import RateLimited, VideoError, YouTube, YtDlpMissing
+from .youtube import InvalidURL, RateLimited, VideoError, YouTube, YtDlpMissing, validate_url
 
 DEFAULT_LANGS = ["en"]
 # Exit code when a batch or playlist run wrote some transcripts but not all.
@@ -535,8 +535,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.error(str(exc))
         return 2
 
-    expanded: List[str] = []
+    failed: List[str] = []
+    valid: List[str] = []
     for url in urls:
+        try:
+            valid.append(validate_url(url))
+        except InvalidURL as exc:
+            log.error("skipping %s" % exc)
+            failed.append(url)
+
+    expanded: List[str] = []
+    for url in valid:
         if args.playlist or ("list=" in url and "watch?v=" not in url):
             try:
                 ids = yt_probe.playlist_ids(url)
@@ -549,7 +558,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     multi = len(expanded) > 1
     ok = 0
-    failed: List[str] = []
     for i, url in enumerate(expanded, 1):
         if multi:
             log.info("\n[%d/%d] %s" % (i, len(expanded), url))
@@ -604,15 +612,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             for p in paths:
                 print(p)
 
-    if multi:
-        log.info("\n%d/%d succeeded" % (ok, len(expanded)))
+    total = len(expanded) + len(urls) - len(valid)
+    if multi or failed:
+        log.info("\n%d/%d succeeded" % (ok, total))
         if failed:
             log.info("failed: %s" % ", ".join(failed))
     if not ok:
         return 1
     # Some videos worked and some did not: a distinct code lets scripts and
     # the macOS app keep the files that were written.
-    return EXIT_PARTIAL if ok < len(expanded) else 0
+    return EXIT_PARTIAL if ok < total else 0
 
 
 if __name__ == "__main__":

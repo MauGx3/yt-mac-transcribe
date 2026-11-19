@@ -324,6 +324,7 @@ def transcribe_audio(
                 "-o",
                 os.path.join(tmpdir, "audio.%(ext)s"),
                 "--no-warnings",
+                "--",  # a URL must never be parsed as a yt-dlp option
                 url,
             ],
             capture_output=True,

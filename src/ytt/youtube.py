@@ -7,10 +7,12 @@ need to download audio or run ffmpeg on the caption path.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -31,6 +33,37 @@ CAPTION_FORMATS = {"json3", "srv3", "srv2", "srv1", "vtt", "ttml", "srt"}
 
 class YtDlpMissing(RuntimeError):
     pass
+
+
+class InvalidURL(ValueError):
+    """Input that is not a YouTube URL or video ID."""
+
+
+YOUTUBE_HOSTS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
+_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def validate_url(raw: str) -> str:
+    """Return a safe YouTube URL for ``raw``, or raise :class:`InvalidURL`.
+
+    URLs end up as yt-dlp arguments, and a batch-file line such as
+    ``--exec=...`` must never be read as an option. Only http(s) URLs on
+    YouTube hosts and bare 11-character video IDs are accepted.
+    """
+    url = (raw or "").strip()
+    if not url:
+        raise InvalidURL("empty URL")
+    if _VIDEO_ID_RE.match(url) and not url.startswith("-"):
+        return "https://www.youtube.com/watch?v=%s" % url
+    if url.startswith("-"):
+        raise InvalidURL("not a URL: %r" % url)
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not any(
+        host == h or host.endswith("." + h) for h in YOUTUBE_HOSTS
+    ):
+        raise InvalidURL("not a YouTube URL: %r" % url)
+    return url
 
 
 class VideoError(RuntimeError):
@@ -103,10 +136,21 @@ class YouTube:
         self.ytdlp = ytdlp
 
     # ---------------------------------------------------------------- metadata
-    def _run(self, args: List[str], timeout: int = 180) -> subprocess.CompletedProcess:
-        cmd = [self.ytdlp, *args]
+    def ytdlp_command(self, options: List[str], urls: List[str]) -> List[str]:
+        """yt-dlp argv: options, then ``--``, then URLs.
+
+        The ``--`` keeps a URL from ever being parsed as an option
+        (``--exec`` would run a shell command).
+        """
+        cmd = [self.ytdlp, *options]
         if self.cookies:
             cmd += ["--cookies-from-browser", self.cookies]
+        return [*cmd, "--", *urls]
+
+    def _run(
+        self, options: List[str], urls: List[str], timeout: int = 180
+    ) -> subprocess.CompletedProcess:
+        cmd = self.ytdlp_command(options, urls)
         self.log.debug("$ " + " ".join(cmd))
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
@@ -115,7 +159,7 @@ class YouTube:
         if cached is not None:
             self.log.debug("metadata cache hit")
             return cached
-        proc = self._run(["-J", "--skip-download", "--no-warnings", url])
+        proc = self._run(["-J", "--skip-download", "--no-warnings"], [url])
         if proc.returncode != 0:
             raise VideoError(_clean_error(proc.stderr) or "yt-dlp failed to read %s" % url)
         try:
@@ -127,7 +171,7 @@ class YouTube:
 
     def playlist_ids(self, url: str) -> List[str]:
         proc = self._run(
-            ["--flat-playlist", "--skip-download", "--print", "%(id)s", "--no-warnings", url]
+            ["--flat-playlist", "--skip-download", "--print", "%(id)s", "--no-warnings"], [url]
         )
         if proc.returncode != 0:
             raise VideoError(_clean_error(proc.stderr) or "yt-dlp failed to read playlist")
@@ -269,9 +313,8 @@ class YouTube:
                 os.path.join(tmpdir, "sub"),
                 "--no-warnings",
                 "--write-auto-subs" if auto else "--write-subs",
-                video_url,
             ]
-            proc = self._run(args)
+            proc = self._run(args, [video_url])
             files = sorted(glob.glob(os.path.join(tmpdir, "sub*")))
             if not files:
                 err = _clean_error(proc.stderr) or "unknown reason"

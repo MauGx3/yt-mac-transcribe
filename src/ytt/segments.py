@@ -13,6 +13,12 @@ from typing import List, Optional, Tuple
 
 SOUND_TAG_RE = re.compile(r"\[(?:[A-Za-z][A-Za-z '\-]{0,40})\]|\((?:[A-Za-z][A-Za-z '\-]{0,40})\)")
 MULTISPACE_RE = re.compile(r"[ \t\u00a0]+")
+_NON_WORD_RE = re.compile(r"[\W_]+")
+# Scripts written without spaces between words: each character counts as a
+# unit of speech when judging how sparse a caption track is.
+_UNSPACED_RE = re.compile(
+    "[\u0e00-\u0eff\u1000-\u109f\u1780-\u17ff\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]"
+)
 
 
 @dataclass
@@ -47,7 +53,12 @@ def normalize_text(text: str) -> str:
 
 
 def _norm_key(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", text.lower())
+    """Letters and digits only, in any script, for duplicate detection.
+
+    Must stay Unicode-aware: an ASCII-only key is empty for Cyrillic, CJK,
+    Arabic, Devanagari... lines, and empty-key lines are dropped below.
+    """
+    return _NON_WORD_RE.sub("", text.casefold())
 
 
 def clean_segments(segments: List[Segment], drop_sound_tags: bool = False) -> List[Segment]:
@@ -188,6 +199,20 @@ def word_count(segments: List[Segment]) -> int:
     return sum(len(s.text.split()) for s in segments)
 
 
+def speech_units(text: str) -> int:
+    """Words for spaced scripts, plus characters of unspaced ones (CJK, Thai...).
+
+    A Japanese or Chinese line is one "word" to ``str.split``, which would
+    make every such track look like near-silence.
+    """
+    unspaced = len(_UNSPACED_RE.findall(text))
+    if not unspaced:
+        return len(text.split())
+    spaced = len(_UNSPACED_RE.sub(" ", text).split())
+    # Two characters is roughly one word in these scripts.
+    return spaced + unspaced // 2
+
+
 def strip_sound_tags(segments: List[Segment]) -> List[Segment]:
     """Remove [Music]/(applause) annotations, dropping cues left empty."""
     out: List[Segment] = []
@@ -209,8 +234,8 @@ def quality_report(segments: List[Segment], duration_ms: int) -> List[str]:
     if not segments:
         return ["caption track is empty"]
 
-    words = word_count(segments)
     text = " ".join(s.text for s in segments)
+    words = speech_units(text)
     if duration_ms > 0:
         wpm = words / (duration_ms / 60000.0)
         if wpm < 10:
