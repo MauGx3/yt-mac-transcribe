@@ -32,6 +32,14 @@ jobs:
         env:
           SKIP: swift-format
         run: pre-commit run --all-files --show-diff-on-failure --color always
+      - name: Liquid Glass APIs only in GlassCompat.swift
+        # Views use the GlassCompat helpers so macOS 14 and 15 keep a fallback.
+        run: |
+          if grep -rnE 'glassEffect|GlassEffectContainer|buttonStyle\(\.glass|Glass\.|macOS 26' \
+              macos/YTTranscribeApp/Sources --include='*.swift' | grep -v '/GlassCompat.swift:'; then
+            echo "::error::Call Liquid Glass APIs through the helpers in GlassCompat.swift."
+            exit 1
+          fi
 
   python-tests:
     name: Python ${{ matrix.python-version }} unit tests
@@ -55,7 +63,8 @@ jobs:
 
   macos-app:
     name: SwiftUI app build and XCTest
-    runs-on: macos-15
+    # macos-26 ships Xcode 26, whose SDK has the Liquid Glass APIs.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Swift format check (warnings only)

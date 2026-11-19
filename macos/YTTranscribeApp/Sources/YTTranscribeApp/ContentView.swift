@@ -1,3 +1,4 @@
+// [AI-GENERATED] Claude Code agent; pending human review.
 import AppKit
 import SwiftUI
 
@@ -9,105 +10,115 @@ enum InputMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// The Transcribe screen: a floating glass composer and a card for the
+/// current run below it.
 struct ContentView: View {
-    @ObservedObject var model: TranscriptionViewModel
+    let model: TranscriptionViewModel
+    /// Switches the sidebar to the Library.
+    var showLibrary: () -> Void = {}
     @State private var url = ""
     @State private var batchText = ""
     @State private var mode: InputMode = .video
-    @State private var showingReviewPrompt = false
-    @State private var reviewSession: ReviewViewModel?
-    @State private var reviewLoadError: String?
+    @State private var preview: String?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("YouTube Transcripts")
-                .font(.largeTitle.weight(.semibold))
-            Picker("Input", selection: $mode) {
-                ForEach(InputMode.allCases) { Text($0.rawValue).tag($0) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New transcript").font(.title2.weight(.semibold))
+                    Text("Paste a YouTube link. Captions are used when the video has them; otherwise the audio is transcribed on this Mac.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                composer
+                RunCard { runCardContent }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .disabled(isBusy)
-            if mode == .batch {
-                TextEditor(text: $batchText)
-                    .font(.body.monospaced())
-                    .frame(minHeight: 90, maxHeight: 140)
-                    .border(Color.secondary.opacity(0.4))
-                    .disabled(isBusy)
-                Text("One URL per line. Text after # is ignored.").font(.caption).foregroundStyle(.secondary)
-            } else {
-                TextField(mode == .playlist ? "Paste a YouTube playlist URL" : "Paste one YouTube URL", text: $url)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(isBusy)
-                    .onSubmit { submit() }
+            .frame(maxWidth: 680, alignment: .leading)
+            .padding(32)
+            .frame(maxWidth: .infinity)
+        }
+        .background {
+            LinearGradient(
+                colors: [Color.accentColor.opacity(0.14), Color.clear],
+                startPoint: .top,
+                endPoint: .center
+            )
+            .ignoresSafeArea()
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { formatsMenu }
+        }
+        .onChange(of: model.state) { _, state in
+            // Show the diff as soon as an enhanced copy with a review file is ready.
+            if case let .completed(files) = state, let review = files.review {
+                openWindow(id: ReviewWindow.id, value: review)
             }
-            formatPicker
-            HStack {
-                Button("Transcribe") { submit() }
+        }
+        .task(id: previewSource) { preview = Self.loadPreview(previewSource) }
+    }
+
+    // MARK: Composer
+
+    private var composer: some View {
+        AppGlassContainer(spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Input", selection: $mode) {
+                    ForEach(InputMode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .disabled(isBusy)
+                HStack(alignment: mode == .batch ? .bottom : .center, spacing: 10) {
+                    input
+                    Button(action: submit) {
+                        Label("Transcribe", systemImage: "text.badge.plus")
+                    }
+                    .appPrimaryButtonStyle()
+                    .controlSize(.large)
                     .keyboardShortcut(.defaultAction)
                     .disabled(isBusy || !hasInput)
-                if isBusy {
-                    ProgressView()
-                    Button("Cancel") { model.cancel() }
+                }
+                if mode == .batch {
+                    Text("One URL per line. Text after # is ignored.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            statusView
-            if case let .completedBatch(summary) = model.state {
-                Button("Show in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting(summary.files.flatMap { [$0.original] + $0.extras })
-                }
-            }
-            if case let .completed(files) = model.state {
-                HStack {
-                    Button("Open Original") { NSWorkspace.shared.open(files.original) }
-                    if let review = files.review {
-                        Button("Review Changes") { openReview(review) }
-                            .keyboardShortcut("r", modifiers: .command)
-                    }
-                    if let reviewed = files.reviewed {
-                        Button("Open Enhanced") { NSWorkspace.shared.open(reviewed) }
-                    }
-                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([files.original] + (files.reviewed.map { [$0] } ?? [])) }
-                }
-                Text(files.original.path).font(.caption).textSelection(.enabled)
-                if let reviewed = files.reviewed {
-                    Text(reviewed.path).font(.caption).textSelection(.enabled)
-                }
-                if let reviewLoadError {
-                    Label(reviewLoadError, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                }
-            }
-            Spacer()
+            .padding(16)
+            .appGlass(in: .rect(cornerRadius: 20))
         }
-        .padding(24)
-        .sheet(item: $reviewSession) { session in
-            ReviewView(model: session)
-        }
-        .confirmationDialog(
-            "Would you like to create an enhanced version using your local model?",
-            isPresented: $showingReviewPrompt,
-            titleVisibility: .visible
-        ) {
-            Button("Create Enhanced Version") {
-                model.beginReview()
+        .animation(.smooth, value: mode)
+    }
+
+    @ViewBuilder
+    private var input: some View {
+        if mode == .batch {
+            TextEditor(text: $batchText)
+                .font(.body.monospaced())
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 90, maxHeight: 160)
+                .disabled(isBusy)
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: "link").foregroundStyle(.secondary)
+                TextField(
+                    mode == .playlist ? "Paste a YouTube playlist URL" : "Paste a YouTube URL",
+                    text: $url
+                )
+                .textFieldStyle(.plain)
+                .font(.title3)
+                .disabled(isBusy)
+                .onSubmit(submit)
             }
-            .disabled(!model.canReview)
-            Button("Keep Original Only", role: .cancel) { model.declineReview() }
-        } message: {
-            Text(model.canReview ? "The original transcript is saved. The enhanced transcript will be saved alongside it, and you can review each change." : "Configure a local rewrite command in Settings to create an enhanced copy.")
-        }
-        .onChange(of: model.state) { state in
-            if case .awaitingReviewChoice = state { showingReviewPrompt = true }
-            // Show the diff as soon as an enhanced copy with a review file is ready.
-            if case let .completed(files) = state, let review = files.review { openReview(review) }
         }
     }
 
-    private var formatPicker: some View {
-        HStack(spacing: 14) {
-            Text("Formats").foregroundStyle(.secondary)
+    private var formatsMenu: some View {
+        Menu {
             ForEach(OutputFormat.allCases) { format in
-                Toggle(format.rawValue, isOn: Binding(
+                Toggle(format.rawValue.uppercased(), isOn: Binding(
                     get: { model.formats.contains(format) },
                     set: { isOn in
                         let updated = isOn ? model.formats + [format] : model.formats.filter { $0 != format }
@@ -115,10 +126,159 @@ struct ContentView: View {
                         if !updated.isEmpty { model.setFormats(updated) }
                     }
                 ))
-                .toggleStyle(.checkbox)
+            }
+        } label: {
+            Label("Formats: " + model.formats.map { $0.rawValue }.joined(separator: ", "), systemImage: "doc.on.doc")
+        }
+        .help("Output formats for new transcripts")
+        .disabled(isBusy)
+    }
+
+    // MARK: Run card
+
+    @ViewBuilder
+    private var runCardContent: some View {
+        switch model.state {
+        case .idle:
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Ready", systemImage: "checkmark.circle").font(.headline)
+                Text("Transcripts are saved in \(model.settings.outputDirectory.path) and listed in the Library.")
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        case .transcribing:
+            progressRow("Transcribing…", detail: "Fetching captions, or transcribing the audio when there are none.")
+        case .rewriting:
+            progressRow("Enhancing transcript…", detail: "Your local model is rewriting the transcript. The original is already saved.")
+        case let .awaitingReviewChoice(files):
+            enhanceChoice(files)
+        case let .completed(files):
+            completed(files)
+        case let .completedBatch(summary):
+            VStack(alignment: .leading, spacing: 10) {
+                Label(batchTitle(summary), systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                HStack {
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting(summary.files.flatMap { [$0.original] + $0.extras })
+                    }
+                    Button("Open Library", action: showLibrary)
+                }
+                .appSecondaryButtonStyle()
+            }
+        case let .failed(message):
+            VStack(alignment: .leading, spacing: 10) {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                Button("Try Again", action: submit)
+                    .appSecondaryButtonStyle()
+                    .disabled(!hasInput)
             }
         }
-        .disabled(isBusy)
+    }
+
+    private func progressRow(_ title: String, detail: String) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            ProgressView().controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Cancel") { model.cancel() }
+                .appSecondaryButtonStyle()
+                .keyboardShortcut(.cancelAction)
+        }
+    }
+
+    private func enhanceChoice(_ files: TranscriptFiles) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Original transcript saved", systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.green)
+            Text(title(of: files)).font(.title3.weight(.medium))
+            Text("Create an enhanced copy with your local model? You can review every change before keeping it.")
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Enhance") { model.beginReview() }
+                    .appPrimaryButtonStyle()
+                    .disabled(!model.canReview)
+                Button("Keep Original Only") { model.declineReview() }
+                    .appSecondaryButtonStyle()
+                if !model.canReview {
+                    SettingsLink { Text("Set up a rewrite command…") }
+                        .buttonStyle(.link)
+                }
+            }
+        }
+    }
+
+    private func completed(_ files: TranscriptFiles) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(files.reviewed == nil ? "Transcript ready" : "Original and enhanced transcripts ready",
+                  systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.green)
+            Text(title(of: files)).font(.title3.weight(.medium))
+            if let preview {
+                Text(preview)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(8)
+                    .textSelection(.enabled)
+            }
+            HStack {
+                Button("Open") { NSWorkspace.shared.open(files.original) }
+                    .appPrimaryButtonStyle()
+                if let review = files.review {
+                    Button("Review Changes") { openWindow(id: ReviewWindow.id, value: review) }
+                        .keyboardShortcut("r", modifiers: .command)
+                        .appSecondaryButtonStyle()
+                }
+                if let reviewed = files.reviewed {
+                    Button("Open Enhanced") { NSWorkspace.shared.open(reviewed) }
+                        .appSecondaryButtonStyle()
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([files.original] + files.extras + (files.reviewed.map { [$0] } ?? []))
+                }
+                .appSecondaryButtonStyle()
+            }
+            Text(files.original.path)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+    }
+
+    // MARK: Helpers
+
+    private func title(of files: TranscriptFiles) -> String {
+        TranscriptRecord.parseFileName(files.original).title
+    }
+
+    private func batchTitle(_ summary: TranscriptionViewModel.BatchSummary) -> String {
+        switch summary.kind {
+        case .playlist: return "\(summary.files.count) transcripts saved from the playlist"
+        default: return "\(summary.files.count) of \(summary.requested) videos transcribed"
+        }
+    }
+
+    /// The finished transcript to preview, when it is plain text or Markdown.
+    private var previewSource: URL? {
+        guard case let .completed(files) = model.state else { return nil }
+        let candidates = [files.original] + files.extras
+        return candidates.first { ["txt", "md"].contains($0.pathExtension.lowercased()) }
+    }
+
+    private static func loadPreview(_ url: URL?) -> String? {
+        guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : String(trimmed.prefix(900))
     }
 
     private var hasInput: Bool {
@@ -135,35 +295,6 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
-    private var statusView: some View {
-        switch model.state {
-        case .idle: Text("Enter a video URL to create a transcript.").foregroundStyle(.secondary)
-        case .transcribing: Text("Transcribing…")
-        case .awaitingReviewChoice: Text("Original transcript saved. Choose whether to create an enhanced copy.")
-        case .rewriting: Text("Enhancing transcript locally…")
-        case .completed(let files): Text(files.reviewed == nil ? "Original transcript ready." : "Original and enhanced transcripts ready.")
-        case .completedBatch(let summary):
-            switch summary.kind {
-            case .playlist: Text("\(summary.files.count) transcripts saved from the playlist. Find them in the Library tab.")
-            default: Text("\(summary.files.count) of \(summary.requested) videos transcribed. Find them in the Library tab.")
-            }
-        case .failed(let message): Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-        }
-    }
-
-    private func openReview(_ file: URL) {
-        do {
-            let session = try ReviewViewModel(reviewFile: file)
-            let model = self.model
-            session.onSave = { copy in model.reviewSaved(reviewFile: file, copy: copy) }
-            reviewSession = session
-            reviewLoadError = nil
-        } catch {
-            reviewLoadError = "Could not open the review file: \(error.localizedDescription)"
-        }
-    }
-
     private func submit() {
         guard !isBusy, hasInput else { return }
         switch mode {
@@ -177,11 +308,21 @@ struct ContentView: View {
     }
 }
 
-// [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
-// PreviewProvider (not #Preview) keeps compatibility with the macOS 13 target.
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView(model: TranscriptionViewModel(settings: .defaults))
-            .frame(width: 520, height: 340)
+/// A solid card for run status. Content stays off the glass layer so it
+/// reads cleanly.
+private struct RunCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(nsColor: .separatorColor)))
     }
+}
+
+#Preview {
+    ContentView(model: TranscriptionViewModel(settings: .defaults))
+        .frame(width: 720, height: 520)
 }

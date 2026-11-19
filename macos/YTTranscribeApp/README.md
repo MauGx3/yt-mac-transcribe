@@ -2,18 +2,24 @@
 
 A lightweight SwiftUI wrapper around the existing `ytt` command and a small transcript manager.
 
-- **Transcribe tab:** a single video, a whole playlist (`ytt --playlist`), or a batch of URLs (one per line). Pick one or more output formats (txt, srt, vtt, json, md). For a single video the app then asks whether to create an enhanced copy with a configured local model command; playlist and batch runs skip this step.
-- **Review screen:** after an enhancement, the app opens a diff of every change. Each change has Accept and Reject. Spots the model was unsure of are labelled **AI unsure**, and spots where the speech recognition was unsure are labelled **Unclear audio**. Unclear words the AI left unchanged are listed under their segment, since they may still be misheard. Unclear audio needs a local transcription (whisper.cpp or mlx-whisper); YouTube captions carry no scores. **Save Reviewed** writes `<name>.reviewed.txt`; the original and enhanced files are left as they are.
-- **Review status in the Library:** enhanced transcripts show **Needs review** until you save a Reviewed copy, then **Reviewed**. **Review Changes** reopens the diff at any time.
-- **Library tab:** every transcript is remembered (`~/Library/Application Support/YTTranscribe/library.json`). Search by title, URL, or the transcript text itself; open, reveal, or remove entries. Removing an entry never deletes the transcript files.
+The window has a sidebar with **Transcribe**, **All Transcripts**, **Needs Review** (with a count of transcripts waiting) and **Benchmark**.
+
+- **Transcribe:** paste a single video, a whole playlist (`ytt --playlist`), or a batch of URLs (one per line) into the composer. Pick output formats (txt, srt, vtt, json, md) from the **Formats** menu in the toolbar. For a single video the run card then offers **Enhance**, which creates an enhanced copy with your local model command; playlist and batch runs skip this step. When a run finishes, the card shows a preview with Open, Review Changes and Show in Finder.
+- **Review window:** after an enhancement, the app opens a diff of every change in its own window. Each change has Accept and Reject. Spots the model was unsure of are labelled **AI unsure**, and spots where the speech recognition was unsure are labelled **Unclear audio**. Unclear words the AI left unchanged are listed under their segment, since they may still be misheard. Unclear audio needs a local transcription (whisper.cpp or mlx-whisper); YouTube captions carry no scores. The floating bar moves between unsure spots (Option-Up and Option-Down). **Save Reviewed** (Command-S) writes `<name>.reviewed.txt`; the original and enhanced files are left as they are.
+- **Library:** every transcript is remembered (`~/Library/Application Support/YTTranscribe/library.json`) in a sortable table with a review status column: **Needs review** until you save a Reviewed copy, then **Reviewed**. Search titles, links or transcript text from the toolbar. Double-click opens a transcript; right-click or the inspector opens, reveals, reviews or removes it. Removing an entry never deletes the transcript files.
+- **Settings:** General (output folder, `ytt` location), Transcription (speech engine and model) and Enhancement (local rewrite command), each with a check that the program is installed.
 
 ## Requirements
 
-- macOS 13 or newer
+- macOS 14 or newer (Liquid Glass on macOS 26)
 - Apple silicon
-- Xcode 15 or newer
+- Xcode 26 or newer for the Liquid Glass look. Xcode 15 and 16 still build the app, with the macOS 14 look everywhere.
 - `yt-dlp` and the `ytt` CLI installed locally
 - Optional local rewrite runner that follows the [`ytt` JSON rewrite protocol](../../docs/local-rewriting.md)
+
+## Liquid Glass
+
+Every Liquid Glass API call lives in `Sources/YTTranscribeApp/GlassCompat.swift`. Views use its helpers (`appGlass(in:)`, `AppGlassContainer`, `appPrimaryButtonStyle()`, `appSecondaryButtonStyle()`), which fall back to materials and bordered buttons on macOS 14 and 15. CI fails if a glass API appears in another file. The file's preview shows both styles side by side.
 
 ## Build and run
 
@@ -32,9 +38,9 @@ The app launches `ytt` directly with Foundation `Process`; it does not use a she
 
 The rewrite command can also be supplied through `YTT_REWRITE_COMMAND` when the app starts. App Settings are stored in `UserDefaults` and take precedence. No model is downloaded or bundled by this app.
 
-## Benchmark tab
+## Benchmark
 
-The Benchmark tab runs `ytt demo --json` on a copyright-free sample voiced with macOS `say`, then lists the time and accuracy of each installed speech model and, when a rewrite command is set, each MLX-LM model. **Use** or **Use Recommended** updates the speech engine, speech model and the rewrite command's `--model`. See [`docs/demo.md`](../../docs/demo.md).
+The Benchmark screen runs `ytt demo --json` on a copyright-free sample voiced with macOS `say`, then lists the time and accuracy of each installed speech model and, when a rewrite command is set, each MLX-LM model. **Use** or **Use Recommended** updates the speech engine, speech model and the rewrite command's `--model`. See [`docs/demo.md`](../../docs/demo.md).
 
 ## Troubleshooting
 

@@ -245,14 +245,16 @@ pass any Hugging Face repo id or a local model folder to `--model`.
 The app in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md) is a
 window around the same tool:
 
-- **Transcribe tab:** paste one video link, a playlist, or a list of links.
-  Choose the output formats and click **Transcribe**.
-- **Library tab:** every transcript you've made, searchable by title, link, or
-  the words in the transcript.
+- **Transcribe:** paste one video link, a playlist, or a list of links.
+  Choose the output formats from the toolbar and click **Transcribe**.
+- **Library:** every transcript you've made, searchable by title, link, or
+  the words in the transcript. **Needs Review** in the sidebar lists enhanced
+  transcripts you haven't reviewed yet.
 
 Files go to `~/Documents/yt-transcribe` unless you change it in Settings.
 
-**To get the app**, build it once with Xcode 15 or newer, on macOS 13 or newer:
+**To get the app**, build it once with Xcode 26 or newer, on macOS 14 or newer.
+Xcode 15 and 16 also work, without the Liquid Glass look:
 
 1. Install Xcode from the App Store, and `yt-dlp` with `brew install yt-dlp`.
 2. Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode.
@@ -496,6 +498,6 @@ MIT. See [`LICENSE`](LICENSE).
 
 A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then can create an AI-enhanced copy and open a review screen where you accept or reject each change. The original, enhanced and reviewed files are saved together; the app can open any of them or reveal them in Finder.
 
-Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 13 or newer on Apple silicon and bundles no model.
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 14 or newer on Apple silicon, and uses Liquid Glass on macOS 26 and bundles no model.
 
 Version 0.1.0 is described in [`CHANGELOG.md`](CHANGELOG.md).

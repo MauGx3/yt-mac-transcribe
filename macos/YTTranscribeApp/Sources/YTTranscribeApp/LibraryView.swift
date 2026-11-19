@@ -1,117 +1,294 @@
+// [AI-GENERATED] Claude Code agent; pending human review.
 import AppKit
 import SwiftUI
 
-/// Browse and search past transcripts.
-struct LibraryView: View {
-    @ObservedObject var library: LibraryStore
-    @State private var query = ""
-    @State private var searchText = true
+/// Which records a Library screen lists.
+enum LibraryFilter {
+    case all
+    case needsReview
+}
 
-    private var results: [TranscriptRecord] {
-        library.search(query, includeContents: searchText)
+private enum SearchScope: Hashable {
+    case titles
+    case transcripts
+}
+
+extension TranscriptRecord {
+    /// Sorts Needs review first, then Reviewed, then not enhanced.
+    var reviewSortKey: Int {
+        switch reviewStatus {
+        case .needsReview: return 0
+        case .reviewed: return 1
+        case .notEnhanced: return 2
+        }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                TextField("Search titles, URLs and transcript text", text: $query)
-                    .textFieldStyle(.roundedBorder)
-                Toggle("Search inside transcripts", isOn: $searchText)
-                    .toggleStyle(.checkbox)
-            }
-            if results.isEmpty {
-                Spacer()
-                Text(library.records.isEmpty ? "Transcripts you create appear here." : "No transcripts match your search.")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                List(results) { record in
-                    LibraryRow(record: record, library: library)
-                }
-            }
-        }
-        .padding(24)
+    var formatsText: String { formats.joined(separator: ", ") }
+
+    var isMissingFile: Bool {
+        guard let file = primaryFile else { return true }
+        return !FileManager.default.fileExists(atPath: file.path)
     }
 }
 
-private struct LibraryRow: View {
-    let record: TranscriptRecord
+/// Browse, search and review past transcripts.
+struct LibraryView: View {
     let library: LibraryStore
-    @State private var reviewSession: ReviewViewModel?
-    @State private var reviewError: String?
+    let filter: LibraryFilter
+    @State private var query = ""
+    @State private var scope: SearchScope = .transcripts
+    @State private var selection: Set<TranscriptRecord.ID> = []
+    @State private var sortOrder = [KeyPathComparator(\TranscriptRecord.createdAt, order: .reverse)]
+    @State private var showInspector = true
+    @Environment(\.openWindow) private var openWindow
 
-    private var missing: Bool {
-        guard let file = record.primaryFile else { return true }
-        return !FileManager.default.fileExists(atPath: file.path)
+    private var results: [TranscriptRecord] {
+        library.search(query, includeContents: scope == .transcripts)
+            .filter { filter == .all || $0.reviewStatus == .needsReview }
+            .sorted(using: sortOrder)
+    }
+
+    private var selectedRecords: [TranscriptRecord] {
+        library.records.filter { selection.contains($0.id) }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(record.title).font(.headline).lineLimit(1)
-                if missing {
-                    Label("File moved or deleted", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption).foregroundStyle(.orange)
+        Table(results, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Title", value: \.title) { record in
+                HStack(spacing: 6) {
+                    Text(record.title).lineLimit(1)
+                    if record.isMissingFile {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .help("File moved or deleted")
+                    }
                 }
-                Spacer()
+            }
+            TableColumn("Created", value: \.createdAt) { record in
                 Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            Text(record.sourceURL).font(.caption).foregroundStyle(.secondary).lineLimit(1).textSelection(.enabled)
-            HStack {
-                Text(record.formats.joined(separator: " · ") + (record.reviewed == nil ? "" : " · enhanced"))
-                    .font(.caption)
-                reviewBadge
-                Spacer()
-                if let reviewFile = record.reviewFile {
-                    Button(record.reviewStatus == .reviewed ? "Review Again" : "Review Changes") { openReview(reviewFile) }
-                }
-                if let copy = record.reviewedCopy {
-                    Button("Open Reviewed") { NSWorkspace.shared.open(copy) }
-                }
-                Button("Open") { if let file = record.primaryFile { NSWorkspace.shared.open(file) } }
-                    .disabled(missing)
-                if let reviewed = record.reviewed {
-                    Button("Open Enhanced") { NSWorkspace.shared.open(reviewed) }
-                }
-                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(record.allFiles) }
-                    .disabled(missing)
-                Button("Remove", role: .destructive) { library.remove(record) }
-                    .help("Removes the entry from the library. Transcript files stay on disk.")
+            .width(min: 120, ideal: 150)
+            TableColumn("Formats", value: \.formatsText) { record in
+                Text(record.formatsText).foregroundStyle(.secondary)
             }
-            .buttonStyle(.link)
-            if let reviewError {
-                Text(reviewError).font(.caption).foregroundStyle(.red)
+            .width(min: 70, ideal: 100)
+            TableColumn("Review", value: \.reviewSortKey) { record in
+                ReviewStatusBadge(status: record.reviewStatus)
+            }
+            .width(min: 100, ideal: 120)
+        }
+        .contextMenu(forSelectionType: TranscriptRecord.ID.self) { ids in
+            let records = library.records.filter { ids.contains($0.id) }
+            if records.count == 1, let record = records.first {
+                RecordActions(record: record, library: library, openReview: openReview)
+            } else if !records.isEmpty {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting(records.flatMap(\.allFiles))
+                }
+                Divider()
+                Button("Remove \(records.count) from Library", role: .destructive) {
+                    for record in records { library.remove(record) }
+                    selection.subtract(ids)
+                }
+            }
+        } primaryAction: { ids in
+            for record in library.records where ids.contains(record.id) {
+                if let file = record.primaryFile { NSWorkspace.shared.open(file) }
             }
         }
-        .padding(.vertical, 4)
-        .sheet(item: $reviewSession) { session in
-            ReviewView(model: session)
+        .overlay { emptyState }
+        .searchable(text: $query, placement: .toolbar, prompt: "Search transcripts")
+        .searchScopes($scope) {
+            Text("Transcript Text").tag(SearchScope.transcripts)
+            Text("Titles and Links").tag(SearchScope.titles)
+        }
+        .inspector(isPresented: $showInspector) {
+            inspector
+                .inspectorColumnWidth(min: 240, ideal: 280, max: 380)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if let record = selectedRecords.first, selectedRecords.count == 1, let reviewFile = record.reviewFile {
+                    Button {
+                        openReview(reviewFile)
+                    } label: {
+                        Label("Review Changes", systemImage: "text.badge.checkmark")
+                    }
+                    .help("Review the enhanced transcript's changes")
+                }
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting(selectedRecords.flatMap(\.allFiles))
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+                .disabled(selectedRecords.isEmpty)
+                Button {
+                    showInspector.toggle()
+                } label: {
+                    Label("Inspector", systemImage: "sidebar.trailing")
+                }
+                .help(showInspector ? "Hide details" : "Show details")
+            }
         }
     }
 
     @ViewBuilder
-    private var reviewBadge: some View {
-        switch record.reviewStatus {
-        case .needsReview:
-            Label("Needs review", systemImage: "circle.dashed").font(.caption).foregroundColor(.orange)
-        case .reviewed:
-            Label("Reviewed", systemImage: "checkmark.circle.fill").font(.caption).foregroundColor(.green)
-        case .notEnhanced:
-            EmptyView()
+    private var emptyState: some View {
+        if results.isEmpty {
+            if !query.isEmpty {
+                ContentUnavailableView.search(text: query)
+            } else if filter == .needsReview {
+                ContentUnavailableView(
+                    "Nothing to Review",
+                    systemImage: "checkmark.circle",
+                    description: Text("Enhanced transcripts wait here until you save a reviewed copy.")
+                )
+            } else {
+                ContentUnavailableView(
+                    "No Transcripts Yet",
+                    systemImage: "books.vertical",
+                    description: Text("Transcripts you create appear here.")
+                )
+            }
         }
     }
 
-    private func openReview(_ file: URL) {
-        do {
-            let session = try ReviewViewModel(reviewFile: file)
-            let library = self.library
-            session.onSave = { copy in library.markReviewed(reviewFile: file, copy: copy) }
-            reviewSession = session
-            reviewError = nil
-        } catch {
-            reviewError = "Could not open the review file: \(error.localizedDescription)"
+    @ViewBuilder
+    private var inspector: some View {
+        if selectedRecords.count == 1, let record = selectedRecords.first {
+            RecordInspector(record: record, library: library, openReview: openReview)
+        } else {
+            ContentUnavailableView(
+                selectedRecords.isEmpty ? "No Selection" : "\(selectedRecords.count) Transcripts Selected",
+                systemImage: "doc.text.magnifyingglass",
+                description: Text(selectedRecords.isEmpty ? "Select a transcript to see its files and review status." : "Use the toolbar or right-click to act on all of them.")
+            )
         }
     }
+
+    private func openReview(_ reviewFile: URL) {
+        openWindow(id: ReviewWindow.id, value: reviewFile)
+    }
+}
+
+/// A capsule showing Needs review or Reviewed, with a symbol so it reads
+/// without colour.
+struct ReviewStatusBadge: View {
+    let status: TranscriptRecord.ReviewStatus
+
+    var body: some View {
+        switch status {
+        case .needsReview:
+            badge("Needs review", systemImage: "circle.dashed", color: .orange)
+        case .reviewed:
+            badge("Reviewed", systemImage: "checkmark.circle.fill", color: .green)
+        case .notEnhanced:
+            Text("—").foregroundStyle(.tertiary).accessibilityLabel("Not enhanced")
+        }
+    }
+
+    private func badge(_ title: String, systemImage: String, color: Color) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15), in: Capsule())
+    }
+}
+
+/// Menu items for one record, shared by the context menu.
+private struct RecordActions: View {
+    let record: TranscriptRecord
+    let library: LibraryStore
+    let openReview: (URL) -> Void
+
+    var body: some View {
+        Button("Open") { if let file = record.primaryFile { NSWorkspace.shared.open(file) } }
+            .disabled(record.isMissingFile)
+        if let reviewFile = record.reviewFile {
+            Button(record.reviewStatus == .reviewed ? "Review Again" : "Review Changes") { openReview(reviewFile) }
+        }
+        if let copy = record.reviewedCopy {
+            Button("Open Reviewed") { NSWorkspace.shared.open(copy) }
+        }
+        if let enhanced = record.reviewed {
+            Button("Open Enhanced") { NSWorkspace.shared.open(enhanced) }
+        }
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(record.allFiles) }
+            .disabled(record.isMissingFile)
+        Divider()
+        Button("Remove from Library", role: .destructive) { library.remove(record) }
+            .help("Removes the entry from the library. Transcript files stay on disk.")
+    }
+}
+
+/// Details of the selected transcript: source, files and review status.
+private struct RecordInspector: View {
+    let record: TranscriptRecord
+    let library: LibraryStore
+    let openReview: (URL) -> Void
+
+    var body: some View {
+        Form {
+            Section {
+                Text(record.title).font(.headline).textSelection(.enabled)
+                if let link = URL(string: record.sourceURL), link.scheme?.hasPrefix("http") == true {
+                    Link(record.sourceURL, destination: link).lineLimit(1).truncationMode(.middle)
+                } else {
+                    Text(record.sourceURL).textSelection(.enabled)
+                }
+                LabeledContent("Created", value: record.createdAt.formatted(date: .abbreviated, time: .shortened))
+            }
+            Section("Review") {
+                LabeledContent("Status") { ReviewStatusBadge(status: record.reviewStatus) }
+                if let reviewFile = record.reviewFile {
+                    Button(record.reviewStatus == .reviewed ? "Review Again" : "Review Changes") { openReview(reviewFile) }
+                        .appPrimaryButtonStyle()
+                }
+            }
+            Section("Files") {
+                if record.isMissingFile {
+                    Label("The transcript file was moved or deleted.", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                ForEach(record.allFiles, id: \.self) { file in
+                    HStack {
+                        Text(file.lastPathComponent)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(file.path)
+                        Spacer()
+                        Button {
+                            NSWorkspace.shared.open(file)
+                        } label: {
+                            Image(systemName: "arrow.up.forward.app")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Open")
+                        .disabled(!FileManager.default.fileExists(atPath: file.path))
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([file])
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Show in Finder")
+                        .disabled(!FileManager.default.fileExists(atPath: file.path))
+                    }
+                }
+            }
+            Section {
+                Button("Remove from Library", role: .destructive) { library.remove(record) }
+                    .help("Removes the entry from the library. Transcript files stay on disk.")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+#Preview {
+    LibraryView(library: LibraryStore(fileURL: nil), filter: .all)
+        .frame(width: 900, height: 500)
 }

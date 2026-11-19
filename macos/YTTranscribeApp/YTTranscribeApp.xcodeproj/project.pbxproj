@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000031 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* AppSettings.swift */; };
+		A10000000000000000000071 /* GlassCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000070 /* GlassCompat.swift */; };
+		A10000000000000000000073 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000072 /* AppShell.swift */; };
+		A10000000000000000000075 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000074 /* SettingsView.swift */; };
 		A10000000000000000000032 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* ContentView.swift */; };
 		A10000000000000000000033 /* TranscriptionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* TranscriptionRunner.swift */; };
 		A10000000000000000000034 /* TranscriptionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* TranscriptionViewModel.swift */; };
@@ -40,6 +43,9 @@
 		A10000000000000000000008 /* YTTranscribeApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YTTranscribeApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000009 /* YTTranscribeAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YTTranscribeAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		A10000000000000000000070 /* GlassCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCompat.swift; sourceTree = "<group>"; };
+		A10000000000000000000072 /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
+		A10000000000000000000074 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A10000000000000000000022 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000000000000000023 /* TranscriptionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionRunner.swift; sourceTree = "<group>"; };
 		A10000000000000000000024 /* TranscriptionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionViewModel.swift; sourceTree = "<group>"; };
@@ -101,6 +107,9 @@
 				A1000000000000000000002C /* Benchmark.swift */,
 				A1000000000000000000002D /* BenchmarkView.swift */,
 				A10000000000000000000022 /* ContentView.swift */,
+				A10000000000000000000070 /* GlassCompat.swift */,
+				A10000000000000000000072 /* AppShell.swift */,
+				A10000000000000000000074 /* SettingsView.swift */,
 				A10000000000000000000029 /* Library.swift */,
 				A1000000000000000000002A /* LibraryView.swift */,
 				A1000000000000000000005C /* ReviewDocument.swift */,
@@ -242,6 +251,9 @@
 				A1000000000000000000003C /* Benchmark.swift in Sources */,
 				A1000000000000000000003D /* BenchmarkView.swift in Sources */,
 				A10000000000000000000032 /* ContentView.swift in Sources */,
+				A10000000000000000000071 /* GlassCompat.swift in Sources */,
+				A10000000000000000000073 /* AppShell.swift in Sources */,
+				A10000000000000000000075 /* SettingsView.swift in Sources */,
 				A10000000000000000000039 /* Library.swift in Sources */,
 				A1000000000000000000003A /* LibraryView.swift in Sources */,
 				A1000000000000000000004C /* ReviewDocument.swift in Sources */,
@@ -309,7 +321,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -349,7 +361,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -371,7 +383,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.maugx3.yttranscribe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -396,7 +408,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.maugx3.yttranscribe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -414,7 +426,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.maugx3.yttranscribe.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -431,7 +443,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.maugx3.yttranscribe.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
