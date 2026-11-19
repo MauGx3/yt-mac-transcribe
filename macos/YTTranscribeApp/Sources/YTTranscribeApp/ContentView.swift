@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var mode: InputMode = .video
     @State private var preview: String?
     @Environment(\.openWindow) private var openWindow
+    @Environment(AIRuntimeManager.self) private var runtime
+    @State private var settingUpAI = false
 
     var body: some View {
         ScrollView {
@@ -208,9 +210,21 @@ struct ContentView: View {
                 Button("Keep Original Only") { model.declineReview() }
                     .appSecondaryButtonStyle()
                 if !model.canReview {
-                    SettingsLink { Text("Set up a rewrite command…") }
-                        .buttonStyle(.link)
+                    if runtime.layout.canInstall {
+                        Button("Set Up On-Device AI…") { settingUpAI = true }
+                            .buttonStyle(.link)
+                    } else {
+                        SettingsLink { Text("Set up a rewrite command…") }
+                            .buttonStyle(.link)
+                    }
                 }
+            }
+        }
+        .sheet(isPresented: $settingUpAI) {
+            // Enhance starts as soon as setup succeeds, since that is what
+            // the user asked for.
+            AIRuntimeSetupSheet(runtime: runtime, model: model) {
+                if model.canReview { model.beginReview() }
             }
         }
     }
@@ -324,5 +338,6 @@ private struct RunCard<Content: View>: View {
 
 #Preview {
     ContentView(model: TranscriptionViewModel(settings: .defaults))
+        .environment(AIRuntimeManager())
         .frame(width: 720, height: 520)
 }

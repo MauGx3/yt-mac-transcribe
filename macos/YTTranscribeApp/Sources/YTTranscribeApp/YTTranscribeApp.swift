@@ -4,6 +4,8 @@ import SwiftUI
 struct YTTranscribeApp: App {
     @State private var library: LibraryStore
     @State private var model: TranscriptionViewModel
+    /// The app's private Python + MLX install, shared by every window.
+    @State private var runtime = AIRuntimeManager()
 
     init() {
         let library = LibraryStore.standard()
@@ -14,6 +16,7 @@ struct YTTranscribeApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(model: model, library: library)
+                .environment(runtime)
         }
         .windowToolbarStyle(.unified)
         // The review screen opens in its own window so the Library stays usable.
@@ -25,6 +28,7 @@ struct YTTranscribeApp: App {
         .defaultSize(width: 860, height: 640)
         Settings {
             SettingsView(model: model)
+                .environment(runtime)
         }
     }
 }

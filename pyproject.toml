@@ -14,6 +14,19 @@ dependencies = []
 [project.optional-dependencies]
 asr = []
 
+# Not installed by `pip install`. In a uv checkout, `uv sync` installs this
+# group by default (see [tool.uv] below), so rebuilding the project
+# environment keeps the MLX tools that `--engine mlx` and the bundled
+# tools/rewrite_with_local_model.py runner need. Apple silicon only.
+[dependency-groups]
+ai = [
+  "mlx-lm>=0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64' and python_version >= '3.11'",
+  "mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64' and python_version >= '3.11'",
+]
+
+[tool.uv]
+default-groups = ["ai"]
+
 [project.scripts]
 ytt = "ytt.cli:main"
 

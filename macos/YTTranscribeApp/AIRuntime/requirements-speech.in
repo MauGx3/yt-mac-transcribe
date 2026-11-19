@@ -1,0 +1,4 @@
+# Enhancement plus MLX Whisper speech recognition (adds PyTorch, ~200 MB).
+# Regenerate the .txt lock with scripts/lock-ai-runtime.sh after editing.
+mlx-lm==0.32.2
+mlx-whisper==0.4.3

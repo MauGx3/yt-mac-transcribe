@@ -3,6 +3,7 @@
 # Packages the ytt CLI (src/ytt) as a single zipapp (ytt.pyz) and copies it
 # into the app bundle's Resources so the app works without a separate install.
 # Requires python3 on the build machine; yt-dlp is still resolved at runtime.
+# Then bundle-ai-runtime.sh adds uv and the AI runtime files.
 set -eu
 
 REPO_ROOT="$(cd "$SRCROOT/../.." && pwd)"
@@ -16,3 +17,5 @@ DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
 mkdir -p "$DEST"
 python3 -m zipapp "$STAGE" -o "$DEST/ytt.pyz" -p "/usr/bin/env python3" -m "ytt.cli:main"
 chmod +x "$DEST/ytt.pyz"
+
+"$SRCROOT/scripts/bundle-ai-runtime.sh"

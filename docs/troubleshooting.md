@@ -219,9 +219,16 @@ links that didn't work and exits with code `3`. Re-run just those links. If most
 - **Can't find `yt-dlp` or `mlx_whisper`:** the app searches the Homebrew
   folders and `~/.local/bin`. Check in Terminal that `which yt-dlp` prints a path
   in one of those places.
-- **The enhanced copy option is greyed out:** fill in **Local rewrite command**
-  in Settings. Use full paths, as shown in the
+- **The enhanced copy option is greyed out:** click **Set Up On-Device AI…**
+  next to it, or open **Settings → Enhancement**. See the
   [AI features guide](ai-features.md#in-the-mac-app).
+- **On-device AI setup fails:** open **Details** on the setup screen. Most
+  failures are network ones: check the connection and click **Try Again**.
+  The app uses the certificates in your macOS keychain, so company networks
+  that work in Safari work here too. A failed or cancelled setup leaves the
+  previous installation as it was. **Repair** in Settings rebuilds it.
+- **"Python 3 was not found":** the app's built-in `ytt` needs Python. Set up
+  on-device AI (it includes a private Python), or run `brew install python`.
 - **macOS won't open the app:** it isn't signed yet. Go to
   **System Settings → Privacy & Security** and click **Open Anyway**.
 - **An error appears in the status area:** it's the message from `ytt`. Look it

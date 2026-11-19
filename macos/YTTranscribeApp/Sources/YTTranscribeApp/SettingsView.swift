@@ -16,10 +16,10 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             TranscriptionSettings(draft: $draft)
                 .tabItem { Label("Transcription", systemImage: "waveform") }
-            EnhancementSettings(draft: $draft)
+            EnhancementSettings(draft: $draft, model: model)
                 .tabItem { Label("Enhancement", systemImage: "sparkles") }
         }
-        .frame(width: 520)
+        .frame(width: 560)
         .onChange(of: draft) { _, newValue in
             newValue.save()
             model.updateSettings(.defaults)
@@ -154,7 +154,7 @@ private struct TranscriptionSettings: View {
             } header: {
                 Text("Speech recognition")
             } footer: {
-                Text("Used only when a video has no usable captions. MLX needs `pipx install mlx-whisper`; its models download on first use. The Benchmark screen recommends a model for this Mac.")
+                Text("Used only when a video has no usable captions. To use MLX Whisper, include it when you set up on-device AI in the Enhancement tab (or run `pipx install mlx-whisper`); its models download on first use. The Benchmark screen recommends a model for this Mac.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -164,20 +164,23 @@ private struct TranscriptionSettings: View {
 
 private struct EnhancementSettings: View {
     @Binding var draft: SettingsDraft
+    let model: TranscriptionViewModel
+    @Environment(AIRuntimeManager.self) private var runtime
 
     var body: some View {
         Form {
+            AIRuntimeSettingsSection(runtime: runtime, model: model)
             Section {
-                TextField("Local rewrite command", text: $draft.rewriteCommand, prompt: Text("ollama run llama3"))
+                TextField("Custom rewrite command", text: $draft.rewriteCommand, prompt: Text("Empty: use on-device AI"))
                 FoundStatus(
                     found: SettingsDraft.programExists(draft.rewriteCommand),
                     foundText: "Program found",
                     missingText: "Program not found on the usual paths. Use its full path if it is installed elsewhere."
                 )
             } header: {
-                Text("Enhanced transcripts")
+                Text("Custom command (advanced)")
             } footer: {
-                Text("Executable and arguments. After a transcript is saved, the app can run this command to create an enhanced copy, then show every change for review. Leave empty to turn enhancement off.")
+                Text("Executable and arguments, for another model runner such as Ollama or llama.cpp. When set, Enhance runs this instead of the on-device AI above.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -187,4 +190,5 @@ private struct EnhancementSettings: View {
 
 #Preview {
     SettingsView(model: TranscriptionViewModel(settings: .defaults))
+        .environment(AIRuntimeManager())
 }

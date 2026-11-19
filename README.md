@@ -284,7 +284,11 @@ browser. You accept or reject each change, then save your final
 `My Video.reviewed.txt`. Changes the AI wasn't sure about, and words the speech
 recognition may have misheard, are labelled so you can check those first.
 
-Setup takes two commands, on an Apple silicon Mac:
+**In the Mac app there's nothing to set up by hand:** the first time you press
+**Enhance**, it offers to install everything it needs into its own folder, with
+your OK. See [AI features](docs/ai-features.md#in-the-mac-app).
+
+In Terminal, setup takes two commands, on an Apple silicon Mac:
 
 ```bash
 python3 -m venv ~/.venvs/ytt-ai
@@ -498,6 +502,6 @@ MIT. See [`LICENSE`](LICENSE).
 
 A small SwiftUI wrapper is available in [`macos/YTTranscribeApp`](macos/YTTranscribeApp/README.md). It accepts one YouTube URL, creates the original text transcript, then can create an AI-enhanced copy and open a review screen where you accept or reject each change. The original, enhanced and reviewed files are saved together; the app can open any of them or reveal them in Finder.
 
-Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. Optionally set a local rewrite command in the app’s Settings. The app targets macOS 14 or newer on Apple silicon, and uses Liquid Glass on macOS 26 and bundles no model.
+Open `macos/YTTranscribeApp/YTTranscribeApp.xcodeproj` in Xcode and build the `YTTranscribeApp` scheme. The `ytt` CLI is bundled into the app at build time, so only `yt-dlp` needs to be installed separately. AI enhancement sets itself up from inside the app the first time you use it. The app targets macOS 14 or newer on Apple silicon, and uses Liquid Glass on macOS 26 and bundles no model.
 
 Version 0.1.0 is described in [`CHANGELOG.md`](CHANGELOG.md).

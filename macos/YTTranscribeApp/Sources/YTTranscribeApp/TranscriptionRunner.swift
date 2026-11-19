@@ -19,17 +19,20 @@ enum TranscriptionRunnerError: LocalizedError {
     case commandFailed(status: Int32, detail: String)
     case missingOutput
     case cancelled
+    case pythonMissing
 
     var errorDescription: String? {
         switch self {
         case .rewriteCommandMissing:
-            return "Configure a local rewrite command in Settings before requesting an enhanced transcript."
+            return "Set up on-device AI in Settings › Enhancement, or enter a custom rewrite command there, before requesting an enhanced transcript."
         case let .commandFailed(status, detail):
             return detail.isEmpty ? "ytt exited with status \(status)." : detail
         case .missingOutput:
             return "ytt finished successfully but did not report the expected transcript output."
         case .cancelled:
             return "Transcription was cancelled."
+        case .pythonMissing:
+            return "Python 3 was not found on this Mac. Open Settings › Enhancement and choose Set Up On-Device AI, which installs a private copy of Python for the app, or install Python with Homebrew (brew install python)."
         }
     }
 }
@@ -100,7 +103,7 @@ struct TranscriptionRunner: TranscriptionRunning {
         var args = [url, "-f"] + settings.effectiveFormats.map(\.rawValue)
             + ["-o", settings.outputDirectory.path] + asrArguments(settings)
         if case .review = mode {
-            args += ["--rewrite-command"] + settings.rewriteCommand
+            args += ["--rewrite-command"] + settings.effectiveRewriteCommand
         }
         return args
     }
@@ -125,7 +128,7 @@ struct TranscriptionRunner: TranscriptionRunning {
     }
 
     func review(url: String, settings: AppSettings) async throws -> TranscriptFiles {
-        guard !settings.rewriteCommand.isEmpty else {
+        guard !settings.effectiveRewriteCommand.isEmpty else {
             throw TranscriptionRunnerError.rewriteCommandMissing
         }
         let output = try await run(.review, url: url, settings: settings)
@@ -159,7 +162,8 @@ struct TranscriptionRunner: TranscriptionRunning {
         try FileManager.default.createDirectory(at: settings.outputDirectory, withIntermediateDirectories: true)
         let result: ProcessResult
         do {
-            result = try await Self.execute(executable: settings.yttExecutable, arguments: arguments)
+            let launch = try Self.launchCommand(executable: settings.yttExecutable, arguments: arguments)
+            result = try await Self.execute(executable: launch.executable, arguments: launch.arguments)
             try Task.checkCancellation()
         } catch is CancellationError {
             throw TranscriptionRunnerError.cancelled
@@ -211,15 +215,56 @@ struct TranscriptionRunner: TranscriptionRunning {
     // [AI-GENERATED] Chatbox agent (claude-opus-5-5); pending human review.
     // GUI apps inherit a minimal PATH, but `ytt` looks up `yt-dlp` (and the
     // optional ASR tools) on PATH, so Homebrew locations are prepended here,
-    // plus ~/.local/bin where `pipx install mlx-whisper` puts its commands.
-    static func processEnvironment(base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+    // then the app's own AI runtime (mlx_whisper, hf), then ~/.local/bin
+    // where `pipx install mlx-whisper` puts its commands.
+    static func processEnvironment(
+        base: [String: String] = ProcessInfo.processInfo.environment,
+        runtimeBin: URL? = defaultRuntimeBin()
+    ) -> [String: String] {
         let home = base["HOME"] ?? NSHomeDirectory()
         let pipxBin = (home as NSString).appendingPathComponent(".local/bin")
-        let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin", pipxBin, "/usr/bin", "/bin"]
+        let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin"] + (runtimeBin.map { [$0.path] } ?? [])
+            + [pipxBin, "/usr/bin", "/bin"]
         var env = base
         let existing = (base["PATH"] ?? "").split(separator: ":").map(String.init)
         env["PATH"] = (toolDirectories + existing.filter { !toolDirectories.contains($0) }).joined(separator: ":")
         return env
+    }
+
+    /// The AI runtime's `bin` folder, when the runtime is installed.
+    static func defaultRuntimeBin() -> URL? {
+        let layout = AIRuntimeLayout.standard
+        return FileManager.default.isExecutableFile(atPath: layout.python.path) ? layout.binDirectory : nil
+    }
+
+    /// How to start `ytt`. A bundled `ytt.pyz` runs with an explicit Python:
+    /// the AI runtime's, else Homebrew's, else the Command Line Tools' one.
+    /// Its `#!/usr/bin/env python3` line is not used, because on a Mac
+    /// without developer tools that opens an "install tools" dialog instead.
+    static func launchCommand(
+        executable: URL,
+        arguments: [String],
+        pythonCandidates: [String] = defaultPythonCandidates(),
+        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) throws -> (executable: URL, arguments: [String]) {
+        guard executable.pathExtension == "pyz" else { return (executable, arguments) }
+        guard let python = pythonCandidates.first(where: isExecutable) else {
+            throw TranscriptionRunnerError.pythonMissing
+        }
+        return (URL(fileURLWithPath: python), [executable.path] + arguments)
+    }
+
+    /// `/usr/bin/python3` is only listed when developer tools are installed,
+    /// since otherwise it is a stub that asks to install them.
+    static func defaultPythonCandidates() -> [String] {
+        let fm = FileManager.default
+        var candidates = [AIRuntimeLayout.standard.python.path, "/opt/homebrew/bin/python3", "/usr/local/bin/python3"]
+        let toolPythons = [
+            "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        ]
+        if toolPythons.contains(where: fm.isExecutableFile(atPath:)) { candidates.append("/usr/bin/python3") }
+        return candidates
     }
 
     /// Lets the drain threads hit EOF when the process never launched.
